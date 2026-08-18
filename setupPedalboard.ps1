@@ -1,59 +1,84 @@
 param(
     [ValidateSet("venv", "global")][string]$Scope = "venv",
     [switch]$User,
-    [switch]$Dev
+    [switch]$Dev,
+    [string]$PythonExe
 )
 $ErrorActionPreference = "Stop"
 $repoRoot = $PSScriptRoot
 $venvDir = Join-Path $repoRoot "python\.venv"
-$pythonExe = Join-Path $venvDir "Scripts\python.exe"
+$venvPythonExe = Join-Path $venvDir "Scripts\python.exe"
 $packageTarget = if ($Dev) { "$repoRoot[katana,dev]" } else { "$repoRoot[katana]" }
 
-if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
-    throw "Python launcher 'py' was not found. Install Python 3.10, 3.11, or 3.12 and retry."
-}
-
-$pythonVersionArg = $null
-try {
-    $availableRuntimes = @(py -0p)
-} catch {
-    throw "Could not query installed Python runtimes with 'py -0p'."
-}
-foreach ($candidate in @("3.12", "3.11", "3.10")) {
-    if ($availableRuntimes | Where-Object { $_ -match "-V:$([regex]::Escape($candidate))\s" }) {
-        $pythonVersionArg = "-$candidate"
-        break
+function Test-SupportedPython([string]$Candidate) {
+    if (-not (Test-Path -LiteralPath $Candidate -PathType Leaf)) { return $false }
+    try {
+        $supported = & $Candidate -c "import sys; print(int((3, 10) <= sys.version_info[:2] < (3, 13)))"
+        return $supported.Trim() -eq "1"
+    } catch {
+        return $false
     }
 }
-if (-not $pythonVersionArg) {
-    throw "Python 3.10, 3.11, or 3.12 is required because python-rtmidi 1.5.8 has no Windows wheel for Python 3.13+. Install Python 3.12 and retry."
+
+if ($PythonExe) {
+    $PythonExe = (Resolve-Path -LiteralPath $PythonExe -ErrorAction Stop).Path
+    if (-not (Test-SupportedPython $PythonExe)) {
+        throw "-PythonExe must reference Python 3.10, 3.11, or 3.12."
+    }
+} else {
+    $localPythonCandidates = @("Python312", "Python311", "Python310") |
+        ForEach-Object { Join-Path $env:LOCALAPPDATA "Programs\Python\$_\python.exe" }
+    $PythonExe = $localPythonCandidates | Where-Object { Test-SupportedPython $_ } | Select-Object -First 1
 }
+
+if (-not $PythonExe -and (Get-Command py -ErrorAction SilentlyContinue)) {
+    foreach ($candidate in @("3.12", "3.11", "3.10")) {
+        try {
+            $candidateExe = (& py "-$candidate" -c "import sys; print(sys.executable)").Trim()
+            if (Test-SupportedPython $candidateExe) {
+                $PythonExe = $candidateExe
+                break
+            }
+        } catch {
+            continue
+        }
+    }
+}
+if (-not $PythonExe) {
+    throw "Python 3.10, 3.11, or 3.12 is required because python-rtmidi 1.5.8 has no Windows wheel for Python 3.13+. Install a compatible runtime, or pass its path with -PythonExe."
+}
+Write-Host "Using Python: $PythonExe"
 
 if ($Scope -eq "venv") {
-    if (-not (Test-Path -LiteralPath $pythonExe)) {
+    if (-not (Test-Path -LiteralPath $venvPythonExe)) {
         Write-Host "Creating python\.venv..."
-        & py $pythonVersionArg -m venv $venvDir
+        & $PythonExe -m venv $venvDir
     }
-    $venvVersionIsSupported = & $pythonExe -c "import sys; print(int((3, 10) <= sys.version_info[:2] < (3, 13)))"
+    $venvVersionIsSupported = & $venvPythonExe -c "import sys; print(int((3, 10) <= sys.version_info[:2] < (3, 13)))"
     if ($venvVersionIsSupported.Trim() -ne "1") {
         throw "python\.venv uses an unsupported Python version. Remove that generated environment, install Python 3.12, and rerun setup."
     }
+    if ($Dev) {
+        Write-Host "Updating the package build backend for development checks..."
+        & $venvPythonExe -m pip install --upgrade "setuptools>=77" wheel
+        if ($LASTEXITCODE -ne 0) { throw "Build-backend installation failed with exit code $LASTEXITCODE." }
+    }
     Write-Host "Installing the BlueBoard/Katana bridge and MIDI backend..."
-    & $pythonExe -m pip install --editable $packageTarget
+    & $venvPythonExe -m pip install --editable $packageTarget
     if ($LASTEXITCODE -ne 0) { throw "Package installation failed with exit code $LASTEXITCODE." }
-    & $pythonExe -m blueboard_macro_handler --version
+    & $venvPythonExe -m blueboard_macro_handler --version
     Write-Host "Setup complete. Start with .\listKatanaMidiOutputs.ps1 and .\scanBlueBoard.ps1."
     exit 0
 }
 
 $installArgs = @("-m", "pip", "install", "--upgrade", $packageTarget)
 if ($User) { $installArgs += "--user" }
-& py $pythonVersionArg @installArgs
+& $PythonExe @installArgs
 if ($LASTEXITCODE -ne 0) { throw "Global package installation failed with exit code $LASTEXITCODE." }
 
 $scriptDirectories = @(
-    (& py $pythonVersionArg -c "import sysconfig; print(sysconfig.get_path('scripts'))").Trim(),
-    (& py $pythonVersionArg -c "import sysconfig; print(sysconfig.get_path('scripts', scheme='nt_user'))").Trim()
+    (& $PythonExe -c "import sysconfig; print(sysconfig.get_path('scripts'))").Trim(),
+    (& $PythonExe -c "import sysconfig; print(sysconfig.get_path('scripts', scheme='nt_user'))").Trim()
 ) | Select-Object -Unique
 $executable = $scriptDirectories | ForEach-Object { Join-Path $_ "blueboard-katana.exe" } |
     Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1

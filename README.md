@@ -80,6 +80,13 @@ If local PowerShell policy blocks scripts, use a process-scoped bypass:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setupPedalboard.ps1
 ```
 
+If a compatible Python is installed but not registered with the Windows `py`
+launcher, pass its executable explicitly:
+
+```powershell
+.\setupPedalboard.ps1 -Dev -PythonExe "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
+```
+
 Connect the amplifier with a USB data cable and use the exact output printed by
 the second command. Close BOSS Tone Studio for the first transport tests so port
 ownership is unambiguous.
