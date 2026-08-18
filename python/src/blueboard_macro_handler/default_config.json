@@ -1,0 +1,9 @@
+{
+  "device": {"name": "BlueBoard", "scanTimeout": 8.0, "pair": false},
+  "bindings": [
+    {"cc": 20, "channel": 1, "edge": "press", "action": null},
+    {"cc": 21, "channel": 1, "edge": "press", "action": null},
+    {"cc": 22, "channel": 1, "edge": "press", "action": null},
+    {"cc": 23, "channel": 1, "edge": "press", "action": null}
+  ]
+}

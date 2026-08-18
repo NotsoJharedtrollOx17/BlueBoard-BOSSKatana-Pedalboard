@@ -1,0 +1,55 @@
+{
+  "device": {
+    "name": "BlueBoard",
+    "scanTimeout": 8.0,
+    "pair": false
+  },
+  "katana": {
+    "outputName": "KATANA",
+    "midiChannel": 1,
+    "model": "katana100MkII",
+    "firmware": "2.00",
+    "effectControls": {
+      "booster": 16,
+      "mod": 17,
+      "fx": 18,
+      "delay": 19,
+      "reverb": 20,
+      "effectLoop": 21
+    },
+    "presetStates": {
+      "0": {"booster": false, "delay": false},
+      "1": {"booster": false, "delay": false}
+    }
+  },
+  "bindings": [
+    {
+      "cc": 20,
+      "channel": 1,
+      "edge": "press",
+      "cooldownMs": 250,
+      "action": {"type": "katana", "command": "selectPreset", "preset": 0}
+    },
+    {
+      "cc": 21,
+      "channel": 1,
+      "edge": "press",
+      "cooldownMs": 250,
+      "action": {"type": "katana", "command": "selectPreset", "preset": 1}
+    },
+    {
+      "cc": 22,
+      "channel": 1,
+      "edge": "press",
+      "cooldownMs": 250,
+      "action": {"type": "katana", "command": "toggleEffect", "effect": "booster"}
+    },
+    {
+      "cc": 23,
+      "channel": 1,
+      "edge": "press",
+      "cooldownMs": 250,
+      "action": {"type": "katana", "command": "toggleEffect", "effect": "delay"}
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+
+class KeyboardBackend(Protocol):
+    def sendCombo(self, keys: tuple[str, ...]) -> None: ...
+    def releaseAll(self) -> None: ...
+    def close(self) -> None: ...
