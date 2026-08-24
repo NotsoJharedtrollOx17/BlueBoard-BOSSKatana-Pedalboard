@@ -38,4 +38,4 @@ extra="katana,linux"
 [[ "$dev_install" == "true" ]] && extra="katana,linux,dev"
 "$venv_dir/bin/python" -m pip install --editable "$repo_root[$extra]"
 "$venv_dir/bin/python" -m blueboard_macro_handler --version
-printf 'Setup complete. Start with ./listKatanaMidiOutputs.sh and ./scanBlueBoard.sh\n'
+printf 'Setup complete. Connect both devices, then run ./configurePedalboard.sh\n'

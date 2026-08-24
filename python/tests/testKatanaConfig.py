@@ -3,7 +3,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from blueboard_macro_handler.config import ConfigError, configAsDict, loadConfig, officialEffectControls
+from blueboard_macro_handler.config import (
+    ConfigError,
+    configAsDict,
+    katanaPedalboardConfig,
+    loadConfig,
+    officialEffectControls,
+    writeConfig,
+)
 
 
 class KatanaConfigTests(unittest.TestCase):
@@ -80,6 +87,22 @@ class KatanaConfigTests(unittest.TestCase):
         packaged = loadConfig(root / "python" / "src" / "blueboard_macro_handler" / "default_config.json")
         self.assertEqual(configAsDict(repository), configAsDict(packaged))
         self.assertTrue(all(binding.action is None for binding in packaged.bindings))
+
+    def testGeneratedPedalboardProfileUsesDetectedOutputAndDocumentedMapping(self) -> None:
+        config = katanaPedalboardConfig("KATANA 1")
+        self.assertEqual(config.katana.outputName, "KATANA 1")
+        self.assertEqual([binding.cc for binding in config.bindings], [20, 21, 22, 23])
+        self.assertEqual(config.bindings[0].action.preset, 0)
+        self.assertEqual(config.bindings[2].action.effect, "booster")
+        self.assertEqual(config.bindings[3].action.effect, "delay")
+
+    def testWriteConfigRefusesAccidentalReplacement(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pedalboard.json"
+            writeConfig(katanaPedalboardConfig("KATANA 1"), path)
+            with self.assertRaisesRegex(ConfigError, "already exists"):
+                writeConfig(katanaPedalboardConfig("KATANA 2"), path)
+            self.assertEqual(loadConfig(path).katana.outputName, "KATANA 1")
 
 
 if __name__ == "__main__":

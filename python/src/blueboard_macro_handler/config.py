@@ -256,3 +256,35 @@ def configAsDict(config: AppConfig) -> dict[str, Any]:
             "presetStates": {str(preset): dict(state) for preset, state in config.katana.presetStates.items()},
         }
     return result
+
+
+def katanaPedalboardConfig(outputName: str, deviceName: str = "BlueBoard", scanTimeout: float = 8.0) -> AppConfig:
+    """Build the safe, documented A-D starter profile for a detected Katana output."""
+    katana = KatanaConfig(
+        outputName=outputName,
+        presetStates={
+            0: {"booster": False, "delay": False},
+            1: {"booster": False, "delay": False},
+        },
+    )
+    bindings = (
+        Binding(20, "press", ActionSpec("katana", command="selectPreset", preset=0), cooldownMs=250),
+        Binding(21, "press", ActionSpec("katana", command="selectPreset", preset=1), cooldownMs=250),
+        Binding(22, "press", ActionSpec("katana", command="toggleEffect", effect="booster"), cooldownMs=250),
+        Binding(23, "press", ActionSpec("katana", command="toggleEffect", effect="delay"), cooldownMs=250),
+    )
+    return AppConfig(bindings, name=deviceName, scanTimeout=scanTimeout, pair=False, katana=katana)
+
+
+def writeConfig(config: AppConfig, path: Path, force: bool = False) -> None:
+    """Atomically write a normalized configuration without replacing it accidentally."""
+    if path.exists() and not force:
+        raise ConfigError(f"{path} already exists; use --force to replace it")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    try:
+        temporary.write_text(json.dumps(configAsDict(config), indent=2) + "\n", encoding="utf-8")
+        temporary.replace(path)
+    except OSError as error:
+        temporary.unlink(missing_ok=True)
+        raise ConfigError(f"cannot write {path}: {error}") from error

@@ -70,8 +70,19 @@ From PowerShell in this repository:
 
 ```powershell
 .\setupPedalboard.ps1
-.\listKatanaMidiOutputs.ps1
-.\scanBlueBoard.ps1
+.\configurePedalboard.ps1
+.\runPedalboard.ps1 --debug
+```
+
+`configurePedalboard.ps1` is the normal user path. With the Katana connected by
+USB and the BlueBoard powered on, it performs read-only discovery, chooses the
+single non-control Katana output, writes the ignored local profile at
+`python/config/katana-pedalboard.local.json`, remembers the BlueBoard address,
+and prints the next commands. It never sends MIDI to the amplifier. If more than
+one possible main output exists, it stops and requests an explicit selection:
+
+```powershell
+.\configurePedalboard.ps1 --output "KATANA 1"
 ```
 
 If local PowerShell policy blocks scripts, use a process-scoped bypass:
@@ -112,14 +123,15 @@ Test Booster on and off explicitly:
   --output "KATANA" --channel 1 --control 16 --value 0
 ```
 
-Run the complete bridge in dry-run mode first:
+Run the complete bridge in dry-run mode first. The launcher uses the generated
+local profile and tells the user to configure first if it is missing:
 
 ```powershell
 .\runPedalboard.ps1 --debug
 ```
 
-After inspecting the logs and editing the example configuration with the actual
-MIDI output name, enable amplifier actions intentionally:
+After confirming A-D button events in the logs, enable amplifier actions
+intentionally:
 
 ```powershell
 .\runPedalboard.ps1 --debug --execute-actions
@@ -136,8 +148,7 @@ Momentary BlueBoard button lights are a separate opt-in feature:
 ```bash
 chmod +x ./*.sh
 ./setupPedalboard.sh
-./listKatanaMidiOutputs.sh
-./scanBlueBoard.sh
+./configurePedalboard.sh
 ./runPedalboard.sh --debug
 ./runPedalboard.sh --debug --execute-actions
 ```
@@ -153,9 +164,10 @@ The packaged default at
 [`python/config/blueboard.json`](python/config/blueboard.json) leaves all four
 buttons unmapped. It is safe for scanning, validation, and installation.
 
-Copy and edit
+The configure command generates `python/config/katana-pedalboard.local.json`
+from the documented starter layout. The committed
 [`python/config/katana-pedalboard.example.json`](python/config/katana-pedalboard.example.json)
-for live use. Its intended layout is:
+remains a reference for manual customization. The layout is:
 
 | Button | BlueBoard input | Example Katana action |
 |---|---:|---|
@@ -211,11 +223,13 @@ blueboard-katana validate
 blueboard-katana init-config [path]
 blueboard-katana midi-outputs
 blueboard-katana katana-test --output NAME (--program N | --control N --value N)
+blueboard-katana configure [--output NAME] [--config PATH]
 ```
 
 `replay`, `validate`, and the test suite do not need hardware. `midi-outputs` is
 read-only. `katana-test` is intentionally a direct side-effect command and requires
-an explicit output plus message.
+an explicit output plus message. `configure` discovers both devices and writes
+local state, but never opens a MIDI port or sends a command.
 
 ## Development and branches
 

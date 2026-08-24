@@ -20,8 +20,10 @@ release publishes prebuilt Windows/Linux wheels only through CPython 3.12. A cle
 install on Python 3.14 correctly exposed the unsupported source-build fallback;
 setup now rejects that interpreter before invoking pip.
 
-This is source-level implementation evidence. No physical Katana validation is
-claimed by this repository snapshot.
+The initial baseline was source-level implementation evidence. The subsequent
+2026-08-23 Windows observation physically validates PC0 and CC16 on/off through
+`KATANA 1`; the remaining integrated, reconnect, Linux, and SysEx claims stay
+explicitly unvalidated.
 
 ## Capability status
 
@@ -33,7 +35,7 @@ claimed by this repository snapshot.
 | Katana PC/CC byte construction | Implemented | Pure unit tests and official receive map |
 | MIDI output resolution/transport | Implemented | Fake Mido transport tests |
 | Preset/effect controller state | Implemented, predicted | Unit tests; hardware not yet validated |
-| KATANA-100 MkII USB-MIDI control | Awaiting hardware | Must be observed on target amp |
+| KATANA-100 MkII USB-MIDI control | Partially validated on Windows | PC0 and CC16 on/off physically observed 2026-08-23; remaining checklist pending |
 | Katana reconnect | Retry-on-next-command implemented | Simulated failure/reopen test |
 | Bidirectional state synchronization | Not implemented | Requires verified SysEx input/query path |
 | Deep parameter editing | Not implemented | Empty SysEx registry by design |

@@ -45,6 +45,12 @@ but not Program Change, Control Change, port names, or effect state.
 3. one unique case-insensitive substring;
 4. otherwise fail with the available or ambiguous names.
 
+The `configure` command adds a user-facing discovery layer above that transport.
+It selects a Katana-named port only when exactly one main, non-`CTRL`/`DAW`
+candidate exists, discovers the strongest matching BlueBoard advertisement,
+writes an ignored local starter profile, and persists the address. It lists
+outputs but never opens one, so configuration cannot change the amplifier.
+
 `katana/controller.py` owns lazy output opening, Program Change, effect state,
 predicted state updates, one-command failure accounting, and reopen-on-next-action.
 It never guesses an unknown toggle state.
@@ -59,6 +65,8 @@ or write path is enabled.
 was started with `--execute-actions`, it returns before obtaining a keyboard
 backend or Katana controller. `midi-outputs` is read-only. `katana-test` is a
 separate, explicit hardware command that requires both the output and MIDI data.
+The guided `configure` command is also MIDI-read-only; its side effects are
+limited to local configuration and last-address files.
 
 ## Configuration model
 

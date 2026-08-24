@@ -12,13 +12,13 @@ from . import __version__
 from .actions import ActionDispatcher
 from .ble_midi import BleMidiDecoder
 from .client import BlueBoardClient, discoverBlueBoards
-from .config import ConfigError, configAsDict, loadConfig
-from .katana import KatanaController, MidoMidiTransport, createControlChange, createProgramChange
+from .config import ConfigError, configAsDict, katanaPedalboardConfig, loadConfig, writeConfig
+from .katana import KatanaController, MidoMidiTransport, createControlChange, createProgramChange, resolveOutputName
 from .led_feedback import LedFeedbackController
 from .logging_utils import configureLogging
 from .models import RunMetrics
 from .router import Router
-from .state import defaultStatePath, loadLastAddress
+from .state import defaultStatePath, loadLastAddress, saveLastAddress
 
 logger = logging.getLogger("blueboard.cli")
 
@@ -33,6 +33,7 @@ def logWelcome(command: str) -> None:
         "init-config": "configuration initialization (blueboard-katana init-config)",
         "midi-outputs": "read-only MIDI output discovery (blueboard-katana midi-outputs)",
         "katana-test": "explicit standard-MIDI amplifier test (blueboard-katana katana-test)",
+        "configure": "read-only hardware discovery and local profile setup (blueboard-katana configure)",
     }.get(command, command)
     logger.info("================================================================================")
     logger.info("  BlueBoard + BOSS Katana Pedalboard v%s", __version__)
@@ -120,6 +121,15 @@ def buildParser() -> argparse.ArgumentParser:
     testMessage.add_argument("--control", type=int, help="Control Change number")
     katanaTest.add_argument("--value", type=int, help="Control Change value; required with --control")
 
+    configure = commands.add_parser("configure", help="discover hardware and write a ready-to-run local profile")
+    addLoggingOptions(configure)
+    configure.add_argument("--config", type=Path, default=Path("blueboard-katana.json"))
+    configure.add_argument("--output", help="exact or uniquely matching Katana MIDI output override")
+    configure.add_argument("--name", default="BlueBoard", help="BlueBoard name substring")
+    configure.add_argument("--scan-timeout", type=float, default=8.0)
+    configure.add_argument("--state-file", type=Path, default=defaultStatePath())
+    configure.add_argument("--force", action="store_true", help="replace an existing generated profile")
+
     initialize = commands.add_parser("init-config", help="write an editable default configuration")
     initialize.add_argument("path", type=Path, nargs="?", default=Path("blueboard.json"))
     initialize.add_argument("--force", action="store_true")
@@ -133,6 +143,45 @@ def listMidiOutputs() -> None:
         return
     for name in names:
         print(name)
+
+
+def selectKatanaOutput(requestedName: str | None, availableNames: tuple[str, ...]) -> str:
+    if requestedName:
+        return resolveOutputName(requestedName, availableNames)
+    katanaNames = tuple(name for name in availableNames if "katana" in name.casefold())
+    mainNames = tuple(
+        name for name in katanaNames
+        if "ctrl" not in name.casefold() and "daw" not in name.casefold()
+    )
+    if len(mainNames) == 1:
+        return mainNames[0]
+    if len(katanaNames) == 1:
+        return katanaNames[0]
+    if not katanaNames:
+        raise RuntimeError("No Katana MIDI output found. Connect and power on the amp, then retry.")
+    names = ", ".join(repr(name) for name in katanaNames)
+    raise RuntimeError(f"Katana MIDI output is ambiguous: {names}. Retry with --output and the main port name.")
+
+
+async def configurePedalboard(args: argparse.Namespace) -> None:
+    if args.config.exists() and not args.force:
+        raise ConfigError(f"{args.config} already exists; use --force to replace it")
+    availableNames = MidoMidiTransport().listOutputNames()
+    outputName = selectKatanaOutput(args.output, availableNames)
+    print(f"Katana output : {outputName}")
+    print(f"Scanning up to {args.scan_timeout:g} seconds for a BlueBoard...")
+    devices = await discoverBlueBoards(args.name, args.scan_timeout)
+    if not devices:
+        raise RuntimeError("No BlueBoard found. Hold C while powering it on, then retry.")
+    device = max(devices, key=lambda candidate: candidate.rssi if candidate.rssi is not None else -1000)
+    config = katanaPedalboardConfig(outputName, args.name, args.scan_timeout)
+    writeConfig(config, args.config, args.force)
+    saveLastAddress(args.state_file, device.address)
+    print(f"BlueBoard     : {device.name or '<unnamed>'} ({device.address})")
+    print(f"Configuration : {args.config}")
+    print("No MIDI commands were sent.")
+    print(f"Next dry run  : blueboard-katana run --config {args.config} --debug")
+    print(f"Enable actions: blueboard-katana run --config {args.config} --debug --execute-actions")
 
 
 def sendKatanaTest(args: argparse.Namespace) -> RunMetrics:
@@ -178,6 +227,9 @@ def loadReplayPackets(path: Path) -> list[bytes]:
 
 
 async def asyncCommand(args: argparse.Namespace) -> RunMetrics | None:
+    if args.command == "configure":
+        await configurePedalboard(args)
+        return None
     config = loadConfig(args.config)
     if args.command == "scan":
         devices = await discoverBlueBoards(args.name or config.name, args.scan_timeout or config.scanTimeout)

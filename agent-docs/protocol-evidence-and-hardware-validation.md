@@ -47,6 +47,20 @@ transport and never require the amplifier.
 The SysEx parameter registry is empty. Community original-Katana maps are not
 treated as MkII proof.
 
+## Windows observation, 2026-08-23
+
+The user's KATANA-100 MkII exposed `KATANA 1`, `KATANA DAW CTRL 2`, and
+`KATANA CTRL 3` alongside the Windows wavetable output. With Tone Studio not
+required for the test, the main `KATANA 1` port accepted Program Change 0 and
+physically changed Panel mode to Bank A CH1. It also accepted CC16 values 127 and
+0, with Booster observed on and off. The CLI recorded one Katana command and zero
+failures for each operation. The BlueBoard was independently discovered by name;
+its hardware address is intentionally omitted from committed documentation.
+
+This proves the Windows USB-MIDI path, PC0, and CC16 on the tested amplifier. It
+does not yet prove PC1, CC19, integrated A-D routing, reconnect behavior, Linux,
+or SysEx.
+
 ## Windows hardware checklist
 
 Record the following in a dated test note:
