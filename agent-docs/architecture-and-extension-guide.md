@@ -68,6 +68,11 @@ separate, explicit hardware command that requires both the output and MIDI data.
 The guided `configure` command is also MIDI-read-only; its side effects are
 limited to local configuration and last-address files.
 
+`probe-effects` is the bounded exception for physical effect discovery. It sends
+one documented Program Change and only CC16-CC21, waits for a human observation
+between state changes, records no claim automatically, and attempts an OFF
+cleanup if interrupted. Arbitrary CC scanning and SysEx remain outside this path.
+
 ## Configuration model
 
 The optional top-level `katana` object has:

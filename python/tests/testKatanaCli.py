@@ -11,6 +11,7 @@ from blueboard_macro_handler.cli import (
     buildParser,
     configurePedalboard,
     listMidiOutputs,
+    probeKatanaEffects,
     selectKatanaOutput,
     sendKatanaTest,
 )
@@ -106,6 +107,36 @@ class KatanaCliTests(unittest.TestCase):
             self.assertEqual(config["bindings"][2]["action"]["effect"], "booster")
             self.assertEqual(state["lastAddress"], "BC:6A:29:34:DD:76")
             self.assertEqual(FakeTransport.instances[-1].opened, [])
+
+    def testEffectProbeSelectsPresetAndTestsOnlyRequestedOfficialSwitch(self) -> None:
+        args = argparse.Namespace(output="KATANA", config=None, channel=1, program=0, effects=("delay",))
+        answers = iter(("PROBE", "", "y", "n"))
+        output: list[str] = []
+        with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeTransport):
+            metrics = probeKatanaEffects(args, lambda _prompt: next(answers), output.append)
+        transport = FakeTransport.instances[-1]
+        self.assertEqual(transport.sent, [(0xC0, 0), (0xB0, 19, 127), (0xB0, 19, 0)])
+        self.assertEqual(transport.closed, 1)
+        self.assertEqual(metrics.katanaCommands, 3)
+        self.assertTrue(any("delay" in line and "19" in line for line in output))
+
+    def testEffectProbeTurnsActiveSwitchOffWhenInterrupted(self) -> None:
+        args = argparse.Namespace(output="KATANA", config=None, channel=1, program=0, effects=("fx",))
+        answers = iter(("PROBE", ""))
+
+        def inputFunction(_prompt):
+            try:
+                return next(answers)
+            except StopIteration as error:
+                raise KeyboardInterrupt from error
+
+        with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeTransport), self.assertRaises(
+            KeyboardInterrupt
+        ):
+            probeKatanaEffects(args, inputFunction, lambda _line: None)
+        transport = FakeTransport.instances[-1]
+        self.assertEqual(transport.sent, [(0xC0, 0), (0xB0, 18, 127), (0xB0, 18, 0)])
+        self.assertEqual(transport.closed, 1)
 
 
 if __name__ == "__main__":

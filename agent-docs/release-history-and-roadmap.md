@@ -11,6 +11,7 @@ Handler v1.0.0 and removes its duplicate milestone modules. It adds:
 - preset selection and predicted effect on/off state;
 - failure isolation, reopen-on-next-command, close behavior, logs, and metrics;
 - `midi-outputs` and explicit `katana-test` commands;
+- a bounded interactive CC16-CC21 effect-switch probe with interruption cleanup;
 - harmless defaults and an A/B preset, C/D effect example;
 - Windows/Linux setup, run, scan, port-listing, and branch-aware update scripts;
 - Windows/Linux CI configuration and an expanded unit suite.

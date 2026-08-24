@@ -12,7 +12,14 @@ from . import __version__
 from .actions import ActionDispatcher
 from .ble_midi import BleMidiDecoder
 from .client import BlueBoardClient, discoverBlueBoards
-from .config import ConfigError, configAsDict, katanaPedalboardConfig, loadConfig, writeConfig
+from .config import (
+    ConfigError,
+    configAsDict,
+    katanaPedalboardConfig,
+    loadConfig,
+    officialEffectControls,
+    writeConfig,
+)
 from .katana import KatanaController, MidoMidiTransport, createControlChange, createProgramChange, resolveOutputName
 from .led_feedback import LedFeedbackController
 from .logging_utils import configureLogging
@@ -33,6 +40,7 @@ def logWelcome(command: str) -> None:
         "init-config": "configuration initialization (blueboard-katana init-config)",
         "midi-outputs": "read-only MIDI output discovery (blueboard-katana midi-outputs)",
         "katana-test": "explicit standard-MIDI amplifier test (blueboard-katana katana-test)",
+        "probe-effects": "interactive documented-effect switch probe (blueboard-katana probe-effects)",
         "configure": "read-only hardware discovery and local profile setup (blueboard-katana configure)",
     }.get(command, command)
     logger.info("================================================================================")
@@ -120,6 +128,21 @@ def buildParser() -> argparse.ArgumentParser:
     testMessage.add_argument("--program", type=int, help="zero-based Program Change value (MkII documents 0-8)")
     testMessage.add_argument("--control", type=int, help="Control Change number")
     katanaTest.add_argument("--value", type=int, help="Control Change value; required with --control")
+
+    probe = commands.add_parser("probe-effects", help="interactively test the documented Katana effect switches")
+    addLoggingOptions(probe)
+    probeTarget = probe.add_mutually_exclusive_group(required=True)
+    probeTarget.add_argument("--output", help="exact or uniquely matching Katana MIDI output name")
+    probeTarget.add_argument("--config", type=Path, help="configuration containing the Katana output name")
+    probe.add_argument("--channel", type=int, default=1, help="MIDI channel from 1 to 16")
+    probe.add_argument("--program", type=int, default=0, help="preset selected before probing; MkII documents 0-8")
+    probe.add_argument(
+        "--effects",
+        nargs="+",
+        choices=tuple(officialEffectControls),
+        default=tuple(officialEffectControls),
+        help="one or more documented switches to probe (default: all)",
+    )
 
     configure = commands.add_parser("configure", help="discover hardware and write a ready-to-run local profile")
     addLoggingOptions(configure)
@@ -212,6 +235,99 @@ def sendKatanaTest(args: argparse.Namespace) -> RunMetrics:
     return metrics
 
 
+def _probeObservation(prompt: str, inputFunction) -> str:
+    while True:
+        answer = inputFunction(f"{prompt} [y/n/u]: ").strip().casefold()
+        if answer in {"y", "yes"}:
+            return "yes"
+        if answer in {"n", "no"}:
+            return "no"
+        if answer in {"u", "unknown", ""}:
+            return "unknown"
+        print("Enter y for yes, n for no, or u for unknown.")
+
+
+def probeKatanaEffects(args: argparse.Namespace, inputFunction=input, outputFunction=print) -> RunMetrics:
+    if not 1 <= args.channel <= 16:
+        raise ValueError("--channel must be from 1 to 16")
+    if not 0 <= args.program <= 8:
+        raise ValueError("--program must be from 0 to 8 for the documented Katana MkII profile")
+    outputName = args.output
+    if outputName is None:
+        config = loadConfig(args.config)
+        if config.katana is None:
+            raise ConfigError(f"{args.config} does not contain a Katana configuration")
+        outputName = config.katana.outputName
+    effects = tuple(dict.fromkeys(args.effects))
+    outputFunction("This probe selects the requested preset and tests only official CC16-CC21 switches.")
+    outputFunction("Do not move the amplifier EFFECTS knobs during the probe.")
+    if inputFunction("Type PROBE to continue: ").strip() != "PROBE":
+        outputFunction("Probe cancelled; no MIDI commands were sent.")
+        return RunMetrics()
+
+    metrics = RunMetrics()
+    transport = MidoMidiTransport()
+    activeEffect: str | None = None
+    results: list[tuple[str, int, str, str]] = []
+
+    def send(command, description: str) -> None:
+        try:
+            transport.send(command)
+        except Exception:
+            metrics.katanaCommandFailures += 1
+            raise
+        metrics.katanaCommands += 1
+        logger.info("katana output=%r probe=%s bytes=%s", transport.outputName, description, command.data)
+
+    try:
+        transport.open(outputName)
+        send(
+            createProgramChange(args.channel - 1, args.program),
+            f"programChange channel={args.channel} program={args.program}",
+        )
+        outputFunction(f"Selected program {args.program}. Play a short phrase for each observation.")
+        for effect in effects:
+            controller = officialEffectControls[effect]
+            choice = inputFunction(
+                f"Press Enter to test {effect} (CC{controller}), s to skip, or q to finish: "
+            ).strip().casefold()
+            if choice == "q":
+                break
+            if choice == "s":
+                results.append((effect, controller, "skipped", "skipped"))
+                continue
+            activeEffect = effect
+            send(
+                createControlChange(args.channel - 1, controller, 127),
+                f"controlChange effect={effect} cc={controller} state=on",
+            )
+            observedOn = _probeObservation(f"Did {effect} turn ON?", inputFunction)
+            send(
+                createControlChange(args.channel - 1, controller, 0),
+                f"controlChange effect={effect} cc={controller} state=off",
+            )
+            activeEffect = None
+            observedOff = _probeObservation(f"Did {effect} turn OFF?", inputFunction)
+            results.append((effect, controller, observedOn, observedOff))
+    finally:
+        if activeEffect is not None:
+            controller = officialEffectControls[activeEffect]
+            try:
+                send(
+                    createControlChange(args.channel - 1, controller, 0),
+                    f"cleanup effect={activeEffect} cc={controller} state=off",
+                )
+            except Exception:
+                logger.exception("probe cleanup failed for effect=%s", activeEffect)
+        transport.close()
+
+    outputFunction("\nProbe results")
+    outputFunction("effect       cc   on        off")
+    for effect, controller, observedOn, observedOff in results:
+        outputFunction(f"{effect:<12} {controller:<4} {observedOn:<9} {observedOff}")
+    return metrics
+
+
 def loadReplayPackets(path: Path) -> list[bytes]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -299,6 +415,8 @@ def main(argv: list[str] | None = None) -> int:
             metrics = None
         elif args.command == "katana-test":
             metrics = sendKatanaTest(args)
+        elif args.command == "probe-effects":
+            metrics = probeKatanaEffects(args)
         else:
             metrics = asyncio.run(asyncCommand(args))
     except KeyboardInterrupt:

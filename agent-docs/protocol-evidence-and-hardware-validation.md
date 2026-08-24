@@ -61,6 +61,13 @@ This proves the Windows USB-MIDI path, PC0, and CC16 on the tested amplifier. It
 does not yet prove PC1, CC19, integrated A-D routing, reconnect behavior, Linux,
 or SysEx.
 
+Later tests on the same date sent CC19 values 127 and 0 without a transport
+failure, but the user observed no Delay change. CC18 values 127 and 0 produced a
+different audible/indicator change described as affecting reverb. These are
+unresolved physical observations, not evidence for changing the vendor CC map.
+Tone Studio was not successfully available to inspect the preset assignment, so
+the bounded CC16-CC21 probe is the next evidence step.
+
 ## Windows hardware checklist
 
 Record the following in a dated test note:
@@ -94,6 +101,15 @@ Run in this order:
 
 Do not generalize a successful Program Change into proof of SysEx parameter
 support.
+
+### Bounded switch probe
+
+If Tone Studio cannot inspect the preset, run `probeKatanaEffects.ps1`. This is
+not an arbitrary MIDI brute-force scan. It selects program 0 and tests CC16-CC21
+one at a time with explicit ON/OFF observations and cleanup. Record whether the
+physical indicator and audible effect changed; a successful send log alone only
+proves transport delivery. Do not touch an EFFECTS knob during the sequence,
+because the manual says that doing so discards the MIDI on/off state.
 
 ## Linux hardware checklist
 

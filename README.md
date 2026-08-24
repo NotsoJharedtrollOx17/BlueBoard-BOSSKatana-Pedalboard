@@ -123,6 +123,21 @@ Test Booster on and off explicitly:
   --output "KATANA" --channel 1 --control 16 --value 0
 ```
 
+When Tone Studio is unavailable or a preset's effect assignments are unclear,
+run the constrained interactive probe:
+
+```powershell
+.\probeKatanaEffects.ps1
+```
+
+The probe selects Bank A CH1 (wire program 0), then walks through only the six
+officially documented switches: Booster/CC16, Mod/CC17, FX/CC18, Delay/CC19,
+Reverb/CC20, and Effect Loop/CC21. It waits for an observation after every ON
+and OFF message and prints a result table. Type `PROBE` at its confirmation
+prompt. Moving an EFFECTS knob during the probe invalidates the observation.
+Ctrl+C attempts to turn the currently active switch off before closing. The
+probe does not scan unknown CCs, write presets, or send SysEx.
+
 Run the complete bridge in dry-run mode first. The launcher uses the generated
 local profile and tells the user to configure first if it is missing:
 
@@ -223,6 +238,7 @@ blueboard-katana validate
 blueboard-katana init-config [path]
 blueboard-katana midi-outputs
 blueboard-katana katana-test --output NAME (--program N | --control N --value N)
+blueboard-katana probe-effects (--output NAME | --config PATH) [--effects EFFECT ...]
 blueboard-katana configure [--output NAME] [--config PATH]
 ```
 
@@ -230,6 +246,8 @@ blueboard-katana configure [--output NAME] [--config PATH]
 read-only. `katana-test` is intentionally a direct side-effect command and requires
 an explicit output plus message. `configure` discovers both devices and writes
 local state, but never opens a MIDI port or sends a command.
+`probe-effects` is an explicit, interactive hardware command constrained to the
+vendor-documented standard effect switches.
 
 ## Development and branches
 
