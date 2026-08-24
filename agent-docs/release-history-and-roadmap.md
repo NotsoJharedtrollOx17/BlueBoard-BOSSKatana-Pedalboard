@@ -22,9 +22,10 @@ install on Python 3.14 correctly exposed the unsupported source-build fallback;
 setup now rejects that interpreter before invoking pip.
 
 The initial baseline was source-level implementation evidence. The subsequent
-2026-08-23 Windows observation physically validates PC0 and CC16 on/off through
-`KATANA 1`; the remaining integrated, reconnect, Linux, and SysEx claims stay
-explicitly unvalidated.
+2026-08-23 Windows work corrected the target model to the original 100 W
+KATANA-100, added its grouped MIDI profile, and physically validated the
+integrated A/C/D path through `KATANA 1`. Reconnect, endurance, Linux, expression,
+and SysEx claims remain explicitly unvalidated.
 
 ## Capability status
 
@@ -35,8 +36,10 @@ explicitly unvalidated.
 | Momentary BlueBoard LEDs | Ported, opt-in | Prior hardware evidence; current regression tests |
 | Katana PC/CC byte construction | Implemented | Pure unit tests and official receive map |
 | MIDI output resolution/transport | Implemented | Fake Mido transport tests |
-| Preset/effect controller state | Implemented, predicted | Unit tests; hardware not yet validated |
-| KATANA-100 MkII USB-MIDI control | Partially validated on Windows | PC0 and CC16 on/off physically observed 2026-08-23; remaining checklist pending |
+| Preset/effect controller state | Implemented, predicted | A/C/D physically validated; external changes can make state stale |
+| Original KATANA-100 USB-MIDI control | A/C/D validated on Windows | PC0, grouped CC16, and grouped CC17 physically observed 2026-08-23 |
+| KATANA-100 MkII USB-MIDI control | Source-supported, hardware unvalidated | Official profile and unit tests only; it is not the user's amplifier |
+| Interactive effect probe | MkII-only | Hard-coded CC16-CC21 labels; original-model support is pending |
 | Katana reconnect | Retry-on-next-command implemented | Simulated failure/reopen test |
 | Bidirectional state synchronization | Not implemented | Requires verified SysEx input/query path |
 | Deep parameter editing | Not implemented | Empty SysEx registry by design |
@@ -49,7 +52,7 @@ explicitly unvalidated.
 
 - Install the official driver and current firmware.
 - Record the actual Katana output name.
-- Confirm Program Change 0/1 and CC16/CC19 on the target amp.
+- Confirm Program Change 0/1 and the model-specific effect CCs shown by Tone Studio.
 - Save a dated hardware result in `agent-docs`.
 
 Exit: the computer controls one preset and one effect without the BlueBoard.
@@ -71,7 +74,7 @@ Exit: repeatable live use with disclosed predicted-state semantics.
 
 Exit: recorded Windows and Linux behavior for a release candidate.
 
-### Phase 4: MkII SysEx research
+### Phase 4: model-scoped SysEx research
 
 - Capture target-firmware traffic.
 - Implement a firmware-scoped parameter registry and guarded framing.
@@ -93,9 +96,10 @@ Exit: BlueBoard LEDs reflect verified amplifier state.
 - [ ] Unit tests and Ruff pass on supported Windows and Linux Python versions.
 - [ ] Wheel and sdist build from a clean `main` commit.
 - [ ] Installed wheel passes `--version`, `validate`, and fixture replay.
-- [ ] BOSS driver, firmware, Tone Studio, and port names are recorded.
-- [ ] PC0/PC1 and CC16/CC19 are physically confirmed and restored.
-- [ ] A-D, dry-run, opt-in actions, and momentary LEDs are smoke-tested.
+- [x] Amplifier generation, Tone Studio family, and port names are recorded.
+- [ ] Exact firmware and BOSS driver versions are recorded in the hardware note.
+- [ ] PC0/PC1 and the profile-specific CC assignments are physically confirmed and restored.
+- [ ] A-D, dry-run, opt-in actions, and momentary LEDs are smoke-tested; A/C/D actions are confirmed.
 - [ ] Katana and BlueBoard reconnect independently.
 - [ ] Rehearsal-duration metrics are recorded.
 - [ ] `dev` is intentionally merged to `main`.

@@ -11,7 +11,7 @@ This project separates:
 5. community reverse engineering and inference.
 
 Passing unit tests proves byte construction and software boundaries. It does not
-prove the KATANA-100 MkII combo accepts those bytes over its USB driver.
+prove a particular Katana generation accepts those bytes over its USB driver.
 
 ## Official standard-MIDI evidence
 
@@ -27,6 +27,7 @@ explicit hardware-validation item even though the driver exposes MIDI ports.
 
 Primary sources:
 
+- <https://www.boss.info/us/support/by_product/katana-100/>
 - <https://www.boss.info/us/support/by_product/katana-100_mk2/>
 - <https://static.roland.com/assets/media/pdf/KATANA-Mk2_eng02_W.pdf>
 - <https://static.roland.com/assets/media/pdf/BTS_KTN-Mk2_eng01_W.pdf>
@@ -49,24 +50,61 @@ treated as MkII proof.
 
 ## Windows observation, 2026-08-23
 
-The user's KATANA-100 MkII exposed `KATANA 1`, `KATANA DAW CTRL 2`, and
-`KATANA CTRL 3` alongside the Windows wavetable output. With Tone Studio not
-required for the test, the main `KATANA 1` port accepted Program Change 0 and
-physically changed Panel mode to Bank A CH1. It also accepted CC16 values 127 and
-0, with Booster observed on and off. The CLI recorded one Katana command and zero
-failures for each operation. The BlueBoard was independently discovered by name;
-its hardware address is intentionally omitted from committed documentation.
+### Model correction and application trap
 
-This proves the Windows USB-MIDI path, PC0, and CC16 on the tested amplifier. It
-does not yet prove PC1, CC19, integrated A-D routing, reconnect behavior, Linux,
-or SysEx.
+The target amplifier is the original 100 W KATANA-100 (MkI), not a KATANA-100
+MkII. The initial MkII assumption made the documented CC16-CC21 map look
+applicable when it was not. Windows exposed `KATANA 1`, `KATANA DAW CTRL 2`, and
+`KATANA CTRL 3` alongside the Windows wavetable output; those port names alone do
+not distinguish the amplifier generation.
 
-Later tests on the same date sent CC19 values 127 and 0 without a transport
-failure, but the user observed no Delay change. CC18 values 127 and 0 produced a
-different audible/indicator change described as affecting reverb. These are
-unresolved physical observations, not evidence for changing the vendor CC map.
-Tone Studio was not successfully available to inspect the preset assignment, so
-the bounded CC16-CC21 probe is the next evidence step.
+Two different Tone Studio applications can coexist on Windows. Opening BOSS TONE
+STUDIO for KATANA MkII against the original KATANA produces `WRONG DEVICE` even
+when MIDI IN and MIDI OUT are both `KATANA`. The application that successfully
+edited this amplifier was the original BOSS TONE STUDIO for KATANA, an older
+Adobe AIR application. Always identify both the chassis generation and the Tone
+Studio product before diagnosing cable, driver, or port selection.
+
+The user updated the amplifier firmware before the final validation. The exact
+firmware number was not captured, so the local configuration records it as
+`unknown` rather than inferring a version from the update procedure.
+
+### Captured system assignments
+
+Tone Studio exposed the following receive settings on the connected amplifier:
+
+| Setting | Tone Studio value | Wire/API interpretation |
+|---|---:|---|
+| RX channel | Ch.1 | MIDI channel 1 |
+| Panel | 5 | Program Change 4 on the wire |
+| A:CH1-A:CH4 | 1-4 | Program Change 0-3 on the wire |
+| B:CH1-B:CH4 | 6-9 | Program Change 5-8 on the wire |
+| Booster/Mod switch | CC16 | Shared switch |
+| Delay/FX switch | CC17 | Shared switch |
+| Reverb switch | CC18 | Reverb on/off |
+| Send/Return switch | CC19 | Effects-loop on/off |
+| Expression pedal | CC82 | Continuous controller |
+| GA-FC EXP1 | CC80 | Continuous controller |
+| GA-FC EXP2 | CC81 | Continuous controller |
+
+This resolves the earlier observations exactly: CC16 controlled Booster/Mod,
+CC18 affected Reverb, and CC19 did nothing audible because it addressed
+Send/Return with no active loop. CC19 was never the Delay switch on this
+amplifier. A broad CC scan was unnecessary.
+
+### End-to-end result
+
+The main `KATANA 1` port accepted Program Change 0 and changed Panel mode to
+A:CH1. CC16 values 127 and 0 switched Booster/Mod. After the local profile was
+changed to `model: katana100` and its `delay` action was mapped to CC17, the user
+confirmed the BlueBoard bridge worked end to end: A selected A:CH1, C controlled
+Booster/Mod, and D controlled the shared Delay/FX switch. The BlueBoard address
+is intentionally omitted from committed documentation.
+
+This proves the Windows USB-MIDI path and the A/C/D performance path on the
+tested original KATANA-100. PC1/B, Reverb, Send/Return, expression input,
+independent reconnects, rehearsal-duration reliability, Linux, and SysEx remain
+separate validation items.
 
 ## Windows hardware checklist
 
@@ -91,7 +129,8 @@ Run in this order:
 4. Send Program Change 0 and confirm Bank A CH1.
 5. Send Program Change 1 and confirm Bank A CH2.
 6. Send CC16 value 127 and 0; confirm Booster on and off.
-7. Repeat one other effect such as Delay on CC19.
+7. Repeat another effect using the CC shown by that model's Tone Studio MIDI
+   settings; on the tested original KATANA-100, Delay/FX is CC17.
 8. Start the bridge in dry-run and confirm A-D decoding.
 9. Enable actions and test A only, then A/B, then C/D from known preset state.
 10. Reconnect the Katana while the BlueBoard remains connected.
@@ -104,12 +143,13 @@ support.
 
 ### Bounded switch probe
 
-If Tone Studio cannot inspect the preset, run `probeKatanaEffects.ps1`. This is
-not an arbitrary MIDI brute-force scan. It selects program 0 and tests CC16-CC21
-one at a time with explicit ON/OFF observations and cleanup. Record whether the
-physical indicator and audible effect changed; a successful send log alone only
-proves transport delivery. Do not touch an EFFECTS knob during the sequence,
-because the manual says that doing so discards the MIDI on/off state.
+The current `probeKatanaEffects.ps1` implementation is MkII-only: it hard-codes
+the independent CC16-CC21 meanings. Do not run it against the original
+KATANA-100, even when the supplied local configuration selects `katana100`.
+Inspect the original model's Tone Studio MIDI page or use explicit, individually
+confirmed `katana-test` messages instead. A future profile-aware probe must take
+both its labels and controllers from the selected model profile. A successful
+send log alone proves transport delivery, not a physical effect change.
 
 ## Linux hardware checklist
 

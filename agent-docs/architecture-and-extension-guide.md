@@ -68,10 +68,13 @@ separate, explicit hardware command that requires both the output and MIDI data.
 The guided `configure` command is also MIDI-read-only; its side effects are
 limited to local configuration and last-address files.
 
-`probe-effects` is the bounded exception for physical effect discovery. It sends
-one documented Program Change and only CC16-CC21, waits for a human observation
-between state changes, records no claim automatically, and attempts an OFF
-cleanup if interrupted. Arbitrary CC scanning and SysEx remain outside this path.
+`probe-effects` is a bounded, MkII-only exception for physical effect discovery.
+It sends one documented Program Change and the hard-coded MkII CC16-CC21 effect
+controls, waits for a human observation between state changes, records no claim
+automatically, and attempts an OFF cleanup if interrupted. It must reject or be
+avoided for the original `katana100` profile until its labels and controllers are
+derived from the selected model. Arbitrary CC scanning and SysEx remain outside
+this path.
 
 ## Configuration model
 
@@ -79,7 +82,8 @@ The optional top-level `katana` object has:
 
 - `outputName`: exact or unique substring for the MIDI output;
 - `midiChannel`: JSON channel 1-16;
-- `model`: currently only `katana100MkII`;
+- `model`: `katana100` for the original grouped-switch profile, or
+  `katana100MkII` for the independent-switch MkII profile;
 - `firmware`: recorded provenance, not an automatic compatibility claim;
 - `effectControls`: supported effect name to CC;
 - `presetStates`: preset number to predicted on/off values.
@@ -90,8 +94,10 @@ Supported standard-MIDI actions are:
 - `setEffectState` with `effect` and `enabled`;
 - `toggleEffect` with `effect`.
 
-The documented profile uses CC16-CC21. Overrides are accepted for controlled
-experiments but must not be represented as official without model/firmware evidence.
+The MkII profile uses CC16-CC21 for independent effect switches. The original
+KATANA-100 profile uses CC16 Booster/Mod, CC17 Delay/FX, CC18 Reverb, and CC19
+Send/Return. Overrides are accepted for controlled experiments, but Tone Studio
+settings for the connected model are authoritative.
 
 ## Lifecycle and failure behavior
 
@@ -119,7 +125,8 @@ updates only when there is a real input-session implementation.
 
 ## Adding a standard Katana command
 
-1. Verify the message in official documentation or a captured MkII fixture.
+1. Verify the message in official documentation, the model-correct Tone Studio
+   receive settings, or a captured fixture from the same model and firmware.
 2. Add typed fields and strict validation in `config.py`.
 3. Add a pure constructor in `katana/commands.py` if the message shape is new.
 4. Implement the behavior in `KatanaController.execute()`.
@@ -138,7 +145,7 @@ Do not add raw addresses to button bindings. Add a `ParameterDefinition` with:
 - exact model and firmware;
 - evidence category and fixture reference.
 
-Only `official` and reproduced `capturedMkII` entries should write by default.
+Only `official` and reproduced model-specific capture entries should write by default.
 Queries need a MIDI input, response matcher, bounded worker, timeout, and reconnect
 cleanup. The router must never block waiting for a response.
 
@@ -146,4 +153,4 @@ cleanup. The router must never block waiting for a response.
 
 Use `feature/<name> -> dev -> main`. Keep `main` release-ready. Do not tag a stable
 version until automated checks pass on Windows and Linux and the hardware checklist
-has been recorded for the KATANA-100 MkII.
+has been recorded for the target KATANA model.

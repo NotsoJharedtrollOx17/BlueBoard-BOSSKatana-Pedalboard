@@ -1,4 +1,14 @@
-# iRig BlueBoard Macro Handler v1.0.0 → BOSS Katana MkII 100
+# iRig BlueBoard Macro Handler v1.0.0 -> BOSS Katana bridge
+
+> **Hardware correction, 2026-08-23:** the user's amplifier is the original
+> 100 W KATANA-100 (MkI), not the KATANA-100 MkII assumed by the initial design
+> brief. The connected Tone Studio system page verified grouped assignments:
+> CC16 Booster/Mod, CC17 Delay/FX, CC18 Reverb, and CC19 Send/Return. Program
+> Change 0 selects A:CH1. The Windows A/C/D BlueBoard path is physically
+> validated with the `katana100` profile. Treat the MkII material below as
+> retained design research for a separate supported profile, not evidence about
+> the user's amplifier. See `protocol-evidence-and-hardware-validation.md` for
+> the dated evidence and the Tone Studio generation edge case.
 
 ## Codex implementation brief
 
@@ -718,8 +728,9 @@ List Mido, python-rtmidi/RtMidi, and new dependencies with their licenses. Do no
 - [Platform operations and hardware findings](https://github.com/NotsoJharedtrollOx17/iRigBlueBoard-Macro-Handler/blob/v1.0.0/agent-docs/platform-operations-and-hardware-findings.md)
 - [Release history and roadmap](https://github.com/NotsoJharedtrollOx17/iRigBlueBoard-Macro-Handler/blob/v1.0.0/agent-docs/release-history-and-roadmap.md)
 
-### BOSS Katana MkII
+### BOSS Katana original and MkII
 
+- [BOSS KATANA-100 original support, Version 4, Tone Studio, and manuals](https://www.boss.info/us/support/by_product/katana-100/)
 - [BOSS KATANA-100 MkII manuals](https://www.boss.info/us/support/by_product/katana-100_mk2/owners_manuals/)
 - [BOSS KATANA-100 MkII updates and drivers](https://www.boss.info/us/support/by_product/katana-100_mk2/updates_drivers/)
 - [BOSS KATANA-100 MkII Windows driver information](https://www.boss.info/us/support/by_product/katana-100_mk2/updates_drivers/b203b755-260c-4902-acd0-df3b76d7d412/)
