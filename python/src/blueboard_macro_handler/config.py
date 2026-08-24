@@ -35,6 +35,16 @@ officialEffectControls = {
     "reverb": 20,
     "effectLoop": 21,
 }
+originalKatana100EffectControls = {
+    "booster": 16,
+    "delay": 17,
+    "reverb": 18,
+    "effectLoop": 19,
+}
+effectControlsByModel = {
+    "katana100": originalKatana100EffectControls,
+    "katana100MkII": officialEffectControls,
+}
 
 
 @dataclass(frozen=True)
@@ -135,12 +145,13 @@ def parseKatana(value: Any) -> KatanaConfig | None:
         raise ConfigError("katana.outputName must be a non-empty string")
     if not isinstance(midiChannel, int) or isinstance(midiChannel, bool) or not 1 <= midiChannel <= 16:
         raise ConfigError("katana.midiChannel must be from 1 to 16")
-    if model != "katana100MkII":
-        raise ConfigError("katana.model must be katana100MkII")
+    if model not in effectControlsByModel:
+        accepted = ", ".join(sorted(effectControlsByModel))
+        raise ConfigError(f"katana.model must be one of: {accepted}")
     if not isinstance(firmware, str) or not firmware.strip():
         raise ConfigError("katana.firmware must be a non-empty string")
 
-    rawControls = _requireObject(raw.get("effectControls", officialEffectControls), "katana.effectControls")
+    rawControls = _requireObject(raw.get("effectControls", effectControlsByModel[model]), "katana.effectControls")
     effectControls: dict[str, int] = {}
     for effect, controller in rawControls.items():
         if effect not in supportedEffects:

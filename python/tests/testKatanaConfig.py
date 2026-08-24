@@ -9,6 +9,7 @@ from blueboard_macro_handler.config import (
     katanaPedalboardConfig,
     loadConfig,
     officialEffectControls,
+    originalKatana100EffectControls,
     writeConfig,
 )
 
@@ -44,6 +45,13 @@ class KatanaConfigTests(unittest.TestCase):
         self.assertEqual(config.katana.effectControls, officialEffectControls)
         self.assertEqual(config.katana.presetStates[0], {"booster": False})
         self.assertEqual(config.bindings[0].action.command, "toggleEffect")
+
+    def testLoadsOriginalKatanaProfileWithGroupedSwitches(self) -> None:
+        value = self.baseConfig()
+        value["katana"]["model"] = "katana100"
+        value["katana"]["firmware"] = "4.00"
+        config = loadConfig(self.writeConfig(value))
+        self.assertEqual(config.katana.effectControls, originalKatana100EffectControls)
 
     def testRoundTripRetainsKatanaFields(self) -> None:
         normalized = configAsDict(loadConfig(self.writeConfig(self.baseConfig())))

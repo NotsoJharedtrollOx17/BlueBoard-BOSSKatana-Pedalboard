@@ -189,7 +189,7 @@ remains a reference for manual customization. The layout is:
 | A | CC20 press | Program 0 / Bank A CH1 |
 | B | CC21 press | Program 1 / Bank A CH2 |
 | C | CC22 press | Toggle Booster / CC16 |
-| D | CC23 press | Toggle Delay / CC19 |
+| D | CC23 press | Toggle Delay / profile-specific CC |
 
 The example `presetStates` table seeds the controller's predicted effect state
 after A or B selects a preset. Pressing a toggle before a known preset is selected
@@ -220,6 +220,23 @@ The current English MkII owner's manual documents:
 
 The manual also warns that operating an EFFECTS-section knob makes the knob's
 setting effective and discards the earlier MIDI on/off setting.
+
+### Original KATANA-100 profile
+
+The original KATANA-100 uses grouped standard-MIDI switches. Its Tone Studio
+MIDI-setting screen is the authority for the values saved in the local profile:
+
+| Function | Default CC |
+|---|---:|
+| Booster/Mod switch | 16 |
+| Delay/FX switch | 17 |
+| Reverb switch | 18 |
+| Send/Return switch | 19 |
+
+Use `"model": "katana100"` and configure the project with the values shown by
+the connected amplifier. The BlueBoard's D action remains named `delay`, but on
+this profile it sends the shared Delay/FX switch (CC17 by default); Delay and FX
+cannot be independently switched through this standard-MIDI assignment.
 
 Primary references:
 
