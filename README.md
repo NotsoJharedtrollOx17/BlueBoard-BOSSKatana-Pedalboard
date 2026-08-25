@@ -314,6 +314,7 @@ See:
 - [`agent-docs/protocol-evidence-and-hardware-validation.md`](agent-docs/protocol-evidence-and-hardware-validation.md)
 - [`agent-docs/release-history-and-roadmap.md`](agent-docs/release-history-and-roadmap.md)
 - [`agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md`](agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md), the original implementation brief
+- [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record
 
 ## License and independence
 
