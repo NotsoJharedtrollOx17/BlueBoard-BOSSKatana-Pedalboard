@@ -197,6 +197,19 @@ fails clearly instead of guessing. Panel changes, GA-FC actions, or Tone Studio
 changes can make predicted state stale; bidirectional SysEx readback is the future
 solution.
 
+For the original KATANA-100, a Panel-first profile is included at
+[`python/config/katana-pedalboard-panel.example.json`](python/config/katana-pedalboard-panel.example.json).
+It maps A to Panel (wire Program Change 4), B to A:CH2, C to Booster/Mod, and D
+to Delay/FX. Test it with:
+
+```powershell
+.\python\.venv\Scripts\python.exe -m blueboard_macro_handler run `
+  --config .\python\config\katana-pedalboard-panel.example.json --debug --execute-actions
+```
+
+The Panel profile assumes Booster/Mod and Delay/FX are initially off. If the
+physical Panel state differs, update `presetStates["4"]` before using C or D.
+
 Validate any edited configuration without connecting hardware:
 
 ```powershell
