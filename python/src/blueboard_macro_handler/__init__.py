@@ -1,3 +1,3 @@
-"""Cross-platform iRig BlueBoard to BOSS Katana MkII bridge."""
+"""iRig BlueBoard to BOSS Katana MIDI bridge."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

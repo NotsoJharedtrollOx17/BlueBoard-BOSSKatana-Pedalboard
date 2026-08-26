@@ -67,7 +67,7 @@ if ($Scope -eq "venv") {
     & $venvPythonExe -m pip install --editable $packageTarget
     if ($LASTEXITCODE -ne 0) { throw "Package installation failed with exit code $LASTEXITCODE." }
     & $venvPythonExe -m blueboard_macro_handler --version
-    Write-Host "Setup complete. Connect both devices, then run .\configurePedalboard.ps1."
+    Write-Host "Setup complete. Connect both devices, run .\configurePedalboard.ps1, then .\diagnosePedalboard.ps1."
     exit 0
 }
 

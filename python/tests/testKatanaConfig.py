@@ -7,6 +7,7 @@ from blueboard_macro_handler.config import (
     ConfigError,
     configAsDict,
     katanaPedalboardConfig,
+    katanaProfile,
     loadConfig,
     officialEffectControls,
     originalKatana100EffectControls,
@@ -96,13 +97,35 @@ class KatanaConfigTests(unittest.TestCase):
         self.assertEqual(configAsDict(repository), configAsDict(packaged))
         self.assertTrue(all(binding.action is None for binding in packaged.bindings))
 
-    def testGeneratedPedalboardProfileUsesDetectedOutputAndDocumentedMapping(self) -> None:
+    def testGeneratedPedalboardProfileDefaultsToValidatedOriginalPanelMapping(self) -> None:
         config = katanaPedalboardConfig("KATANA 1")
         self.assertEqual(config.katana.outputName, "KATANA 1")
+        self.assertEqual(config.katana.model, "katana100")
+        self.assertEqual(config.katana.effectControls, originalKatana100EffectControls)
         self.assertEqual([binding.cc for binding in config.bindings], [20, 21, 22, 23])
-        self.assertEqual(config.bindings[0].action.preset, 0)
+        self.assertEqual([config.bindings[0].action.preset, config.bindings[1].action.preset], [4, 1])
         self.assertEqual(config.bindings[2].action.effect, "booster")
         self.assertEqual(config.bindings[3].action.effect, "delay")
+        self.assertEqual(config.katana.presetStates[4], {"booster": False, "delay": False})
+
+    def testGeneratedMkIIProfileUsesIndependentControlsAndChannelLayout(self) -> None:
+        config = katanaPedalboardConfig("KATANA", model="katana100MkII")
+        self.assertEqual(config.katana.model, "katana100MkII")
+        self.assertEqual(config.katana.effectControls, officialEffectControls)
+        self.assertEqual([config.bindings[0].action.preset, config.bindings[1].action.preset], [0, 1])
+
+    def testProfileRegistryCarriesModelCorrectGroupedLabels(self) -> None:
+        original = katanaProfile("katana100")
+        mkII = katanaProfile("katana100MkII")
+        self.assertEqual(original.effectLabels["booster"], "Booster/Mod")
+        self.assertEqual(original.effectLabels["delay"], "Delay/FX")
+        self.assertEqual(mkII.effectLabels["delay"], "Delay")
+
+    def testGeneratedProfileRejectsInvalidModelAndChannel(self) -> None:
+        with self.assertRaisesRegex(ConfigError, "model"):
+            katanaPedalboardConfig("KATANA", model="unknown")
+        with self.assertRaisesRegex(ConfigError, "channel"):
+            katanaPedalboardConfig("KATANA", midiChannel=17)
 
     def testWriteConfigRefusesAccidentalReplacement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

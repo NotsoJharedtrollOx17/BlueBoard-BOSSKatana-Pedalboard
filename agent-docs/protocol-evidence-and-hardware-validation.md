@@ -143,13 +143,13 @@ support.
 
 ### Bounded switch probe
 
-The current `probeKatanaEffects.ps1` implementation is MkII-only: it hard-codes
-the independent CC16-CC21 meanings. Do not run it against the original
-KATANA-100, even when the supplied local configuration selects `katana100`.
-Inspect the original model's Tone Studio MIDI page or use explicit, individually
-confirmed `katana-test` messages instead. A future profile-aware probe must take
-both its labels and controllers from the selected model profile. A successful
-send log alone proves transport delivery, not a physical effect change.
+The v0.2.0 `probeKatanaEffects.ps1` path is model-aware. With a configuration it
+derives the model, MIDI channel, first preset binding, labels, and controllers;
+raw-output use requires `--model`. The original `katana100` profile therefore
+offers only Booster/Mod, Delay/FX, Reverb, and Send/Return, while MkII offers its
+independent switches. The confirmation, observation, and interruption cleanup
+remain mandatory. A successful send log alone proves transport delivery, not a
+physical effect change; physical MkI probe results still need a dated record.
 
 ## Linux hardware checklist
 

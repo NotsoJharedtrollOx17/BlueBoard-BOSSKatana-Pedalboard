@@ -10,6 +10,12 @@
 > the user's amplifier. See `protocol-evidence-and-hardware-validation.md` for
 > the dated evidence and the Tone Studio generation edge case.
 
+> **v0.2.0 implementation note:** the maintained CLI now uses a shared
+> model/profile registry, a guided configuration wizard, a read-only `doctor`
+> command, and a profile-aware probe. Earlier MkII-first configuration and
+> MkII-only probe instructions below are historical design context rather than
+> the current first-run procedure.
+
 ## Codex implementation brief
 
 Status: implementation analysis, revised against the stable Macro Handler release on 2026-08-18.

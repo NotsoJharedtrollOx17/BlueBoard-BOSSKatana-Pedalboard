@@ -135,8 +135,8 @@ Still pending:
 - Program Change 1/B physical confirmation after the Panel-first remap.
 - Reverb, Send/Return, and expression-pedal routing through BlueBoard.
 - Katana and BlueBoard reconnect tests, a rehearsal-duration run, and Linux.
-- A model-aware interactive effect probe. The existing probe is MkII-only and
-  must not be used for the original `katana100` profile.
+- Physical validation of the v0.2.0 model-aware effect probe. Its source now
+  derives grouped labels and CCs from the original `katana100` profile.
 - SysEx parameter readback, authoritative effect-state synchronization, and
   persistent amplifier-state LED feedback.
 

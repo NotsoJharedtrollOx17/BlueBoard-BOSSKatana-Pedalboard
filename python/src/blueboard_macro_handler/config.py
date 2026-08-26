@@ -11,6 +11,25 @@ class ConfigError(ValueError):
 
 
 @dataclass(frozen=True)
+class PedalboardLayout:
+    name: str
+    displayName: str
+    firstPreset: int
+    secondPreset: int
+
+
+@dataclass(frozen=True)
+class KatanaModelProfile:
+    model: str
+    displayName: str
+    defaultFirmware: str
+    defaultLayout: str
+    effectControls: dict[str, int]
+    effectLabels: dict[str, str]
+    layouts: dict[str, PedalboardLayout]
+
+
+@dataclass(frozen=True)
 class ActionSpec:
     type: str
     keys: tuple[str, ...] = ()
@@ -25,26 +44,64 @@ class ActionSpec:
     enabled: bool | None = None
 
 
-supportedEffects = frozenset({"booster", "mod", "fx", "delay", "reverb", "effectLoop"})
+pedalboardLayouts = {
+    "panel-first": PedalboardLayout("panel-first", "Panel and A:CH2", 4, 1),
+    "channels-1-2": PedalboardLayout("channels-1-2", "A:CH1 and A:CH2", 0, 1),
+}
+katanaProfiles = {
+    "katana100": KatanaModelProfile(
+        model="katana100",
+        displayName="Original BOSS KATANA-100 (MkI)",
+        defaultFirmware="unknown",
+        defaultLayout="panel-first",
+        effectControls={"booster": 16, "delay": 17, "reverb": 18, "effectLoop": 19},
+        effectLabels={
+            "booster": "Booster/Mod",
+            "delay": "Delay/FX",
+            "reverb": "Reverb",
+            "effectLoop": "Send/Return",
+        },
+        layouts=dict(pedalboardLayouts),
+    ),
+    "katana100MkII": KatanaModelProfile(
+        model="katana100MkII",
+        displayName="BOSS KATANA-100 MkII",
+        defaultFirmware="unknown",
+        defaultLayout="channels-1-2",
+        effectControls={"booster": 16, "mod": 17, "fx": 18, "delay": 19, "reverb": 20, "effectLoop": 21},
+        effectLabels={
+            "booster": "Booster",
+            "mod": "Mod",
+            "fx": "FX",
+            "delay": "Delay",
+            "reverb": "Reverb",
+            "effectLoop": "Effect Loop",
+        },
+        layouts=dict(pedalboardLayouts),
+    ),
+}
+effectControlsByModel = {model: profile.effectControls for model, profile in katanaProfiles.items()}
+originalKatana100EffectControls = katanaProfiles["katana100"].effectControls
+officialEffectControls = katanaProfiles["katana100MkII"].effectControls
+supportedEffects = frozenset(effect for profile in katanaProfiles.values() for effect in profile.effectControls)
 supportedKatanaCommands = frozenset({"selectPreset", "setEffectState", "toggleEffect"})
-officialEffectControls = {
-    "booster": 16,
-    "mod": 17,
-    "fx": 18,
-    "delay": 19,
-    "reverb": 20,
-    "effectLoop": 21,
-}
-originalKatana100EffectControls = {
-    "booster": 16,
-    "delay": 17,
-    "reverb": 18,
-    "effectLoop": 19,
-}
-effectControlsByModel = {
-    "katana100": originalKatana100EffectControls,
-    "katana100MkII": officialEffectControls,
-}
+
+
+def katanaProfile(model: str) -> KatanaModelProfile:
+    try:
+        return katanaProfiles[model]
+    except KeyError as error:
+        accepted = ", ".join(sorted(katanaProfiles))
+        raise ConfigError(f"Katana model must be one of: {accepted}") from error
+
+
+def pedalboardLayout(profile: KatanaModelProfile, layout: str | None = None) -> PedalboardLayout:
+    requested = layout or profile.defaultLayout
+    try:
+        return profile.layouts[requested]
+    except KeyError as error:
+        accepted = ", ".join(sorted(profile.layouts))
+        raise ConfigError(f"layout for {profile.model} must be one of: {accepted}") from error
 
 
 @dataclass(frozen=True)
@@ -269,22 +326,58 @@ def configAsDict(config: AppConfig) -> dict[str, Any]:
     return result
 
 
-def katanaPedalboardConfig(outputName: str, deviceName: str = "BlueBoard", scanTimeout: float = 8.0) -> AppConfig:
-    """Build the safe, documented A-D starter profile for a detected Katana output."""
+def katanaPedalboardConfig(
+    outputName: str,
+    deviceName: str = "BlueBoard",
+    scanTimeout: float = 8.0,
+    *,
+    model: str = "katana100",
+    layout: str | None = None,
+    midiChannel: int = 1,
+    firmware: str | None = None,
+) -> AppConfig:
+    """Build a model-correct A-D starter profile for a detected Katana output."""
+    if not isinstance(outputName, str) or not outputName.strip():
+        raise ConfigError("Katana output name must be a non-empty string")
+    if not isinstance(deviceName, str) or not deviceName.strip():
+        raise ConfigError("BlueBoard device name must be a non-empty string")
+    if not isinstance(scanTimeout, (int, float)) or scanTimeout <= 0:
+        raise ConfigError("scan timeout must be positive")
+    if not isinstance(midiChannel, int) or isinstance(midiChannel, bool) or not 1 <= midiChannel <= 16:
+        raise ConfigError("MIDI channel must be from 1 to 16")
+    profile = katanaProfile(model)
+    selectedLayout = pedalboardLayout(profile, layout)
+    selectedFirmware = firmware or profile.defaultFirmware
+    if not isinstance(selectedFirmware, str) or not selectedFirmware.strip():
+        raise ConfigError("firmware must be a non-empty string")
     katana = KatanaConfig(
-        outputName=outputName,
+        outputName=outputName.strip(),
+        midiChannel=midiChannel,
+        model=profile.model,
+        firmware=selectedFirmware.strip(),
+        effectControls=dict(profile.effectControls),
         presetStates={
-            0: {"booster": False, "delay": False},
-            1: {"booster": False, "delay": False},
+            selectedLayout.firstPreset: {"booster": False, "delay": False},
+            selectedLayout.secondPreset: {"booster": False, "delay": False},
         },
     )
     bindings = (
-        Binding(20, "press", ActionSpec("katana", command="selectPreset", preset=0), cooldownMs=250),
-        Binding(21, "press", ActionSpec("katana", command="selectPreset", preset=1), cooldownMs=250),
+        Binding(
+            20,
+            "press",
+            ActionSpec("katana", command="selectPreset", preset=selectedLayout.firstPreset),
+            cooldownMs=250,
+        ),
+        Binding(
+            21,
+            "press",
+            ActionSpec("katana", command="selectPreset", preset=selectedLayout.secondPreset),
+            cooldownMs=250,
+        ),
         Binding(22, "press", ActionSpec("katana", command="toggleEffect", effect="booster"), cooldownMs=250),
         Binding(23, "press", ActionSpec("katana", command="toggleEffect", effect="delay"), cooldownMs=250),
     )
-    return AppConfig(bindings, name=deviceName, scanTimeout=scanTimeout, pair=False, katana=katana)
+    return AppConfig(bindings, name=deviceName.strip(), scanTimeout=float(scanTimeout), pair=False, katana=katana)
 
 
 def writeConfig(config: AppConfig, path: Path, force: bool = False) -> None:

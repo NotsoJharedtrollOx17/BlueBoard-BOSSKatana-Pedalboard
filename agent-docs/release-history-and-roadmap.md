@@ -27,6 +27,25 @@ KATANA-100, added its grouped MIDI profile, and physically validated the
 integrated A/C/D path through `KATANA 1`. Reconnect, endurance, Linux, expression,
 and SysEx claims remain explicitly unvalidated.
 
+## 0.2.0 Windows-first setup and reliability release
+
+Version 0.2.0 makes the validated original KATANA-100 profile the recommended
+first-run path without changing the JSON schema or adding new MIDI capabilities.
+It adds one shared model/profile registry, a hybrid guided configuration wizard,
+safe timestamped local-profile backups, a read-only `doctor` command, concise
+runtime mapping summaries, and a model-aware bounded switch probe.
+
+The release target is Windows with the original KATANA-100. Linux scripts and
+Python 3.10/3.12 CI remain as an experimental compatibility path, not a hardware
+qualification claim. Expression control, SysEx, authoritative state readback,
+and persistent state LEDs remain deferred.
+
+Local source validation on 2026-08-24 passed 96 unit tests, Ruff, PowerShell and
+shell syntax checks, Markdown link/fence checks, `git diff --check`, isolated
+sdist/wheel builds, and installed-wheel `--version`, `validate`, and fixture
+replay smoke tests. CI and the physical Windows acceptance record remain release
+gates.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |
@@ -39,7 +58,8 @@ and SysEx claims remain explicitly unvalidated.
 | Preset/effect controller state | Implemented, predicted | A/C/D physically validated; external changes can make state stale |
 | Original KATANA-100 USB-MIDI control | A/C/D validated on Windows | PC0, grouped CC16, and grouped CC17 physically observed 2026-08-23 |
 | KATANA-100 MkII USB-MIDI control | Source-supported, hardware unvalidated | Official profile and unit tests only; it is not the user's amplifier |
-| Interactive effect probe | MkII-only | Hard-coded CC16-CC21 labels; original-model support is pending |
+| Interactive effect probe | Model-aware in source | Profile-derived labels/CCs; physical MkI probe record pending |
+| Guided configuration and doctor | Implemented | Read-only discovery/readiness paths require Windows hardware smoke |
 | Katana reconnect | Retry-on-next-command implemented | Simulated failure/reopen test |
 | Bidirectional state synchronization | Not implemented | Requires verified SysEx input/query path |
 | Deep parameter editing | Not implemented | Empty SysEx registry by design |
@@ -96,6 +116,8 @@ Exit: BlueBoard LEDs reflect verified amplifier state.
 - [ ] Unit tests and Ruff pass on supported Windows and Linux Python versions.
 - [ ] Wheel and sdist build from a clean `main` commit.
 - [ ] Installed wheel passes `--version`, `validate`, and fixture replay.
+- [ ] A fresh guided configuration selects `katana100`, Panel-first, `KATANA 1`, and the intended BlueBoard.
+- [ ] `doctor` passes without opening the MIDI output or sending a message.
 - [x] Amplifier generation, Tone Studio family, and port names are recorded.
 - [ ] Exact firmware and BOSS driver versions are recorded in the hardware note.
 - [ ] PC0/PC1 and the profile-specific CC assignments are physically confirmed and restored.

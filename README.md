@@ -1,7 +1,9 @@
 # BlueBoard + BOSS Katana Pedalboard
 
-A cross-platform Python bridge that turns an iRig BlueBoard into a configurable
-four-button pedalboard for a BOSS KATANA-100 MkII amplifier.
+A Python bridge that turns an iRig BlueBoard into a configurable four-button
+pedalboard for original and MkII BOSS KATANA-100 amplifiers. The original
+KATANA-100 on Windows is the release target; Linux remains an experimental,
+source-tested compatibility path until physical qualification.
 
 The project carries forward the proven BLE-MIDI connection, decoding, routing,
 reconnection, dry-run, logging, Linux compatibility, and optional momentary LED
@@ -10,16 +12,16 @@ feedback from
 It adds a separate USB-MIDI output path for documented Katana Program Change and
 Control Change messages.
 
-Status: `0.1.0` alpha. The software and simulated transport are tested; the Katana
-path still requires validation on the target KATANA-100 MkII hardware before a
-stable release.
+Status: `0.2.0` alpha development snapshot. The original KATANA-100 A/C/D path
+has been physically validated on Windows. B, independent reconnects, the full
+release smoke test, and a one-hour rehearsal run remain release gates.
 
 ## What the first milestone supports
 
 - BlueBoard A-D input as channel 1 CC20-CC23 with press/release edge routing.
 - BOSS preset selection through standard MIDI Program Change.
-- Booster, Mod, FX, Delay, Reverb, and Effect Loop on/off through the documented
-  CC16-CC21 receive map.
+- Model-correct effect switches: grouped CC16-CC19 on the original KATANA-100
+  and independent CC16-CC21 on MkII.
 - Exact or unique-substring MIDI output selection; no arbitrary first-port choice.
 - Predicted per-preset effect state with an explicit unknown-state failure.
 - Dry-run by default. Amplifier and operating-system actions require
@@ -30,7 +32,7 @@ stable release.
 
 This milestone does not write Katana SysEx. Detailed effect type and parameter
 editing remains in BOSS Tone Studio until addresses are captured and reproduced on
-the exact MkII model and firmware.
+the exact target model and firmware.
 
 ## Architecture
 
@@ -56,8 +58,10 @@ attempts to reopen the configured MIDI output without stopping BlueBoard input.
   wheels only through CPython 3.12; Python 3.13+ otherwise needs a local C++ build
   toolchain and is not a supported installation path for this release.
 - iRig BlueBoard configured in its validated mode 2 profile.
-- BOSS KATANA-100 MkII with a USB data cable.
-- Current Katana MkII firmware and the official BOSS USB driver on Windows.
+- Original KATANA-100 or KATANA-100 MkII with a USB data cable. The original
+  KATANA-100 is the hardware-qualified target for v0.2.0.
+- Model-correct BOSS Tone Studio, compatible firmware, and the official BOSS USB
+  driver on Windows.
 - Bluetooth support compatible with Bleak.
 
 The official BOSS support page currently lists Katana MkII System Program 2.00,
@@ -71,19 +75,42 @@ From PowerShell in this repository:
 ```powershell
 .\setupPedalboard.ps1
 .\configurePedalboard.ps1
+.\diagnosePedalboard.ps1
 .\runPedalboard.ps1 --debug
 ```
 
-`configurePedalboard.ps1` is the normal user path. With the Katana connected by
-USB and the BlueBoard powered on, it performs read-only discovery, chooses the
-single non-control Katana output, writes the ignored local profile at
-`python/config/katana-pedalboard.local.json`, remembers the BlueBoard address,
-and prints the next commands. It never sends MIDI to the amplifier. If more than
-one possible main output exists, it stops and requests an explicit selection:
+`configurePedalboard.ps1` is the normal user path. Its guided wizard discovers
+both devices, asks for the amplifier generation and starter layout, records the
+MIDI channel and optional firmware, explains the predicted-state assumption,
+shows the complete A-D map, and confirms before writing the ignored local profile
+at `python/config/katana-pedalboard.local.json`. It never opens a MIDI output or
+sends MIDI to the amplifier. Unique devices are selected automatically; ambiguous
+Katana outputs or BlueBoards are presented as numbered choices.
+
+The recommended original-KATANA profile is Panel-first:
+
+| Button | Action |
+|---|---|
+| A | Panel / Program Change 4 |
+| B | A:CH2 / Program Change 1 |
+| C | Toggle Booster/Mod / CC16 |
+| D | Toggle Delay/FX / CC17 |
+
+For repeatable or headless setup, specify every hardware decision explicitly:
 
 ```powershell
-.\configurePedalboard.ps1 --output "KATANA 1"
+.\configurePedalboard.ps1 --non-interactive --model katana100 `
+  --layout panel-first --output "KATANA 1" --address "BLUEBOARD-ADDRESS" `
+  --accept-profile-state-defaults
 ```
+
+Non-interactive setup fails instead of guessing a model or choosing among
+ambiguous devices. Reconfiguration cancels by default; explicit replacement
+creates a timestamped ignored `.local.json` backup first.
+
+`diagnosePedalboard.ps1` is read-only. It checks Python compatibility, the
+configuration, MIDI backend/output resolution, and BlueBoard discovery. It
+returns exit code 0 when ready or 2 when a required check fails.
 
 If local PowerShell policy blocks scripts, use a process-scoped bypass:
 
@@ -123,20 +150,21 @@ Test Booster on and off explicitly:
   --output "KATANA" --channel 1 --control 16 --value 0
 ```
 
-When Tone Studio is unavailable or a preset's effect assignments are unclear,
-run the constrained interactive probe:
+When Tone Studio is unavailable or a preset's switch assignments are unclear,
+run the constrained, model-aware interactive probe:
 
 ```powershell
 .\probeKatanaEffects.ps1
 ```
 
-The probe selects Bank A CH1 (wire program 0), then walks through only the six
-officially documented switches: Booster/CC16, Mod/CC17, FX/CC18, Delay/CC19,
-Reverb/CC20, and Effect Loop/CC21. It waits for an observation after every ON
-and OFF message and prints a result table. Type `PROBE` at its confirmation
-prompt. Moving an EFFECTS knob during the probe invalidates the observation.
-Ctrl+C attempts to turn the currently active switch off before closing. The
-probe does not scan unknown CCs, write presets, or send SysEx.
+The probe derives its model, channel, first preset, labels, and configured CCs
+from the local profile. On the original amplifier this means grouped Booster/Mod,
+Delay/FX, Reverb, and Send/Return switches; it no longer applies the MkII map to
+a MkI device. It waits for observations after every ON and OFF message and
+prints a result table. Type `PROBE` at its confirmation prompt. Moving an
+EFFECTS knob invalidates the observation. Ctrl+C attempts to turn the active
+switch off before closing. The probe does not scan unknown CCs, write presets,
+or send SysEx.
 
 Run the complete bridge in dry-run mode first. The launcher uses the generated
 local profile and tells the user to configure first if it is missing:
@@ -160,6 +188,9 @@ Momentary BlueBoard button lights are a separate opt-in feature:
 
 ## Linux quick start
 
+Linux remains experimental in v0.2.0: automated regressions run on Linux, but
+the full BlueBoard-to-amplifier path has not been physically qualified.
+
 ```bash
 chmod +x ./*.sh
 ./setupPedalboard.sh
@@ -180,16 +211,16 @@ The packaged default at
 buttons unmapped. It is safe for scanning, validation, and installation.
 
 The configure command generates `python/config/katana-pedalboard.local.json`
-from the documented starter layout. The committed
+from a model-correct starter layout. The committed
 [`python/config/katana-pedalboard.example.json`](python/config/katana-pedalboard.example.json)
 remains a reference for manual customization. The layout is:
 
 | Button | BlueBoard input | Example Katana action |
 |---|---:|---|
-| A | CC20 press | Program 0 / Bank A CH1 |
+| A | CC20 press | Program 4 / Panel for the recommended MkI profile |
 | B | CC21 press | Program 1 / Bank A CH2 |
-| C | CC22 press | Toggle Booster / CC16 |
-| D | CC23 press | Toggle Delay / profile-specific CC |
+| C | CC22 press | Toggle Booster/Mod / CC16 |
+| D | CC23 press | Toggle Delay/FX / CC17 |
 
 The example `presetStates` table seeds the controller's predicted effect state
 after A or B selects a preset. Pressing a toggle before a known preset is selected
@@ -270,6 +301,7 @@ blueboard-katana midi-outputs
 blueboard-katana katana-test --output NAME (--program N | --control N --value N)
 blueboard-katana probe-effects (--output NAME | --config PATH) [--effects EFFECT ...]
 blueboard-katana configure [--output NAME] [--config PATH]
+blueboard-katana doctor --config PATH [--scan-timeout SECONDS]
 ```
 
 `replay`, `validate`, and the test suite do not need hardware. `midi-outputs` is
@@ -277,7 +309,9 @@ read-only. `katana-test` is intentionally a direct side-effect command and requi
 an explicit output plus message. `configure` discovers both devices and writes
 local state, but never opens a MIDI port or sends a command.
 `probe-effects` is an explicit, interactive hardware command constrained to the
-vendor-documented standard effect switches.
+selected model profile. Raw-output use requires `--model`; configuration-based
+use derives the model and first preset. `doctor` is read-only and never opens the
+MIDI output or sends a command.
 
 ## Development and branches
 
@@ -315,6 +349,7 @@ See:
 - [`agent-docs/release-history-and-roadmap.md`](agent-docs/release-history-and-roadmap.md)
 - [`agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md`](agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md), the original implementation brief
 - [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record
+- [`agent-docs/v0.2.0-windows-hardware-acceptance.md`](agent-docs/v0.2.0-windows-hardware-acceptance.md), the release-gating Windows acceptance record
 
 ## License and independence
 

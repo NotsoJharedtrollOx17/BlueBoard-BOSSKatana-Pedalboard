@@ -45,11 +45,12 @@ but not Program Change, Control Change, port names, or effect state.
 3. one unique case-insensitive substring;
 4. otherwise fail with the available or ambiguous names.
 
-The `configure` command adds a user-facing discovery layer above that transport.
-It selects a Katana-named port only when exactly one main, non-`CTRL`/`DAW`
-candidate exists, discovers the strongest matching BlueBoard advertisement,
-writes an ignored local starter profile, and persists the address. It lists
-outputs but never opens one, so configuration cannot change the amplifier.
+The `configure` command adds a hybrid guided discovery layer above that
+transport. It selects unique devices automatically, presents numbered choices
+for ambiguous outputs or BlueBoards, requires an explicit model in
+non-interactive mode, shows the complete mapping, and confirms predicted-state
+assumptions before writing. Replacements create timestamped ignored backups. It
+lists outputs but never opens one, so configuration cannot change the amplifier.
 
 `katana/controller.py` owns lazy output opening, Program Change, effect state,
 predicted state updates, one-command failure accounting, and reopen-on-next-action.
@@ -68,17 +69,23 @@ separate, explicit hardware command that requires both the output and MIDI data.
 The guided `configure` command is also MIDI-read-only; its side effects are
 limited to local configuration and last-address files.
 
-`probe-effects` is a bounded, MkII-only exception for physical effect discovery.
-It sends one documented Program Change and the hard-coded MkII CC16-CC21 effect
-controls, waits for a human observation between state changes, records no claim
-automatically, and attempts an OFF cleanup if interrupted. It must reject or be
-avoided for the original `katana100` profile until its labels and controllers are
-derived from the selected model. Arbitrary CC scanning and SysEx remain outside
-this path.
+`probe-effects` is a bounded, model-aware exception for physical effect
+discovery. It derives its model, channel, first Program Change, switch labels,
+and controllers from the selected configuration. Raw-output use requires an
+explicit model. It waits for a human observation between state changes, records
+no claim automatically, and attempts an OFF cleanup if interrupted. Arbitrary CC
+scanning and SysEx remain outside this path.
+
+`doctor` is a repeatable read-only readiness check. It validates Python,
+configuration loading, MIDI backend/output resolution, and BlueBoard discovery.
+It never opens the MIDI output, sends a command, or changes saved state.
 
 ## Configuration model
 
-The optional top-level `katana` object has:
+One internal profile registry is the source for model names, default controls,
+grouped/independent labels, layouts, wizard summaries, validation defaults, and
+effect probing. The optional top-level `katana` object remains backward-compatible
+and has:
 
 - `outputName`: exact or unique substring for the MIDI output;
 - `midiChannel`: JSON channel 1-16;
