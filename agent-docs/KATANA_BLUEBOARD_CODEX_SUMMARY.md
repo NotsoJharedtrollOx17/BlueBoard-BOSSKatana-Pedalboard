@@ -1,5 +1,12 @@
 # iRig BlueBoard Macro Handler v1.0.0 -> BOSS Katana bridge
 
+> **v1.0.0 scope update, 2026-08-29:** read-only, hardware-validated original
+> KATANA-100 Mk I SysEx state synchronization is now a stable-release gate so
+> runtime toggles no longer depend on assumed preset defaults. General SysEx
+> writes remain out of scope. Continue with
+> [`v1.0.0-mki-sysex-state-awareness-spec.md`](v1.0.0-mki-sysex-state-awareness-spec.md),
+> which supersedes this document wherever their v1.0.0 scope differs.
+
 > **Hardware correction, 2026-08-23:** the user's amplifier is the original
 > 100 W KATANA-100 (MkI), not the KATANA-100 MkII assumed by the initial design
 > brief. The connected Tone Studio system page verified grouped assignments:

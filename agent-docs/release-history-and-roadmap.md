@@ -1,5 +1,12 @@
 # Release history and roadmap
 
+> **Current v1.0.0 decision, 2026-08-29:** the owner's release target now
+> requires read-only, hardware-validated original KATANA-100 Mk I SysEx state
+> synchronization. The detailed design and revised gates are in
+> [`v1.0.0-mki-sysex-state-awareness-spec.md`](v1.0.0-mki-sysex-state-awareness-spec.md).
+> Historical sections below accurately record what earlier prereleases excluded,
+> but their post-v1 placement of authoritative state is superseded.
+
 ## 0.1.0 development baseline
 
 The initial bridge ports the maintained Python runtime from iRig BlueBoard Macro
