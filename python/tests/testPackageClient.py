@@ -89,6 +89,33 @@ class PackageClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((feedback.bound, feedback.unbound), (1, 1))
         self.assertTrue(feedback.response)
 
+    async def testStopEventCancelsAnInProgressDiscovery(self) -> None:
+        stopEvent, discoveryCancelled = asyncio.Event(), asyncio.Event()
+
+        async def discover(_name, _timeout):
+            try:
+                await asyncio.Future()
+            finally:
+                discoveryCancelled.set()
+
+        async def requestStop() -> None:
+            await asyncio.sleep(0)
+            stopEvent.set()
+
+        client = BlueBoardClient(
+            lambda _event: None,
+            lambda: None,
+            nameSubstring="BlueBoard",
+            address=None,
+            pair=False,
+            scanTimeout=20,
+        )
+        with patch("blueboard_macro_handler.client.discoverBlueBoards", discover):
+            stopTask = asyncio.create_task(requestStop())
+            await asyncio.wait_for(client.run(stopEvent), timeout=1)
+            await stopTask
+        self.assertTrue(discoveryCancelled.is_set())
+
     async def testResetLedsDisconnectsAfterFeedbackInitialization(self) -> None:
         metrics, feedback = RunMetrics(), FakeLedFeedback()
         device = type("Device", (), {"address": "AA:BB"})()
@@ -226,3 +253,7 @@ class PackageClientTests(unittest.IsolatedAsyncioTestCase):
     def testIgnoresOtherGatttoolOutput(self) -> None:
         self.assertIsNone(parseGatttoolNotification("Characteristic value was written successfully"))
         self.assertIsNone(parseGatttoolNotification("Notification handle = 0x001c value: 64"))
+
+    def testMetricsSnapshotIncludesStopReasonWhenKnown(self) -> None:
+        metrics = RunMetrics(stopReason="duration-limit")
+        self.assertEqual(metrics.snapshot()["stopReason"], "duration-limit")

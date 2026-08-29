@@ -266,7 +266,17 @@ class BlueBoardClient:
             worker, feedbackBound = None, False
             try:
                 self.transition(ConnectionState.scanning, retry=retryCount)
-                device = await self.findDevice()
+                scanTask = asyncio.create_task(self.findDevice(), name="blueboard-discovery")
+                stopTask = asyncio.create_task(stopEvent.wait(), name="blueboard-stop-during-discovery")
+                done, pending = await asyncio.wait((scanTask, stopTask), return_when=asyncio.FIRST_COMPLETED)
+                for task in pending:
+                    task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+                if stopTask in done:
+                    scanTask.cancel()
+                    await asyncio.gather(scanTask, return_exceptions=True)
+                    break
+                device = scanTask.result()
                 self.transition(ConnectionState.connecting, pair=self.pair)
                 def onDisconnected(_client, event=disconnected) -> None: event.set()
                 async with BleakClient(device, disconnected_callback=onDisconnected, services=[serviceUuid], pair=self.pair, timeout=45.0 if self.pair else 30.0) as client:

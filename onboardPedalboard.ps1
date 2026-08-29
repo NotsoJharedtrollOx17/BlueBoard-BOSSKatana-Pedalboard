@@ -24,7 +24,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = $PSScriptRoot
 $venvPythonExe = Join-Path $repoRoot "python\.venv\Scripts\python.exe"
 $configFile = Join-Path $repoRoot "python\config\katana-pedalboard.local.json"
-$requiredVersion = "0.3.0"
+$requiredVersion = "0.4.0"
 
 function Test-OnboardingEnvironment([string]$Candidate) {
     if (-not (Test-Path -LiteralPath $Candidate -PathType Leaf)) { return $false }
@@ -47,10 +47,10 @@ if ($RefreshEnvironment -or -not $environmentReady) {
         throw "Pedalboard setup failed with exit code $LASTEXITCODE."
     }
     if (-not (Test-OnboardingEnvironment $venvPythonExe)) {
-        throw "Setup completed, but the local v0.3.0 environment is not ready."
+        throw "Setup completed, but the local v0.4.0 environment is not ready."
     }
 } else {
-    Write-Host "Reusing the compatible local v0.3.0 environment."
+    Write-Host "Reusing the compatible local v0.4.0 environment."
 }
 
 $profileOptions = @("Output", "Model", "Layout", "MidiChannel", "Firmware", "Name", "Address", "ScanTimeout", "NonInteractive", "AcceptProfileStateDefaults")

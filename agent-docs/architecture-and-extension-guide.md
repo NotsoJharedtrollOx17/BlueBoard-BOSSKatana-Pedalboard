@@ -146,6 +146,9 @@ The inherited runtime metrics are preserved. Katana adds:
 - `katanaCommandFailures`;
 - `katanaReconnects`.
 
+Bounded session runs also add `stopReason=duration-limit` to the final summary;
+Ctrl+C records `stopReason=interrupted`.
+
 Future bidirectional work may add queries, timeouts, and authoritative state
 updates only when there is a real input-session implementation.
 

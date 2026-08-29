@@ -12,9 +12,9 @@ feedback from
 It adds a separate USB-MIDI output path for documented Katana Program Change and
 Control Change messages.
 
-Status: `0.3.0` alpha development snapshot. The original KATANA-100 A/C/D path
-has been physically validated on Windows. B, independent reconnects, the full
-release smoke test, and a one-hour rehearsal run remain release gates.
+Status: `0.4.0` alpha reliability-evidence snapshot. The original KATANA-100
+A/C/D path has been physically validated on Windows. B, independent reconnects,
+the full release smoke test, and a one-hour rehearsal run remain v1.0.0 gates.
 
 ## What the first milestone supports
 
@@ -59,7 +59,7 @@ attempts to reopen the configured MIDI output without stopping BlueBoard input.
   toolchain and is not a supported installation path for this release.
 - iRig BlueBoard configured in its validated mode 2 profile.
 - Original KATANA-100 or KATANA-100 MkII with a USB data cable. The original
-  KATANA-100 is the hardware-qualified target for v0.3.0.
+  KATANA-100 is the hardware-qualified target for v0.4.0.
 - Model-correct BOSS Tone Studio, compatible firmware, and the official BOSS USB
   driver on Windows.
 - Bluetooth support compatible with Bleak.
@@ -78,7 +78,7 @@ From PowerShell in this repository:
 ```
 
 `onboardPedalboard.ps1` is the normal first-run path. It reuses a compatible local
-v0.3.0 environment or runs setup first, then enumerates Katana MIDI outputs and
+v0.4.0 environment or runs setup first, then enumerates Katana MIDI outputs and
 scans for the BlueBoard concurrently. One typed discovery snapshot feeds both the
 guided configuration and readiness evaluation, so the same devices are not
 scanned twice. The wizard asks for the amplifier generation and starter layout,
@@ -212,9 +212,25 @@ Momentary BlueBoard button lights are a separate opt-in feature:
 .\runPedalboard.ps1 --debug --execute-actions --led-feedback
 ```
 
+## Recorded Windows sessions
+
+Use the session recorder for rehearsal evidence. It creates an ignored JSON log
+with final packet, action, reconnect, Katana-transport, and stop-reason metrics.
+It is dry-run unless `-Active` is supplied.
+
+```powershell
+.\recordPedalboardSession.ps1 -DurationMinutes 5
+.\recordPedalboardSession.ps1 -Active -LedFeedback -DurationMinutes 60
+```
+
+The second command can change the amplifier because `-Active` enables configured
+actions. Press Ctrl+C for an interrupted session, or use `-DurationMinutes` for
+a clean bounded session. Logs default to `logs\pedalboard-sessions`; an explicit
+`-LogDirectory` or `-ScanTimeout` overrides that invocation only.
+
 ## Linux quick start
 
-Linux remains experimental in v0.3.0: automated regressions run on Linux, but
+Linux remains experimental in v0.4.0: automated regressions run on Linux, but
 the full BlueBoard-to-amplifier path has not been physically qualified.
 
 ```bash
@@ -379,6 +395,8 @@ See:
 - [`agent-docs/release-history-and-roadmap.md`](agent-docs/release-history-and-roadmap.md)
 - [`agent-docs/v0.3.0-feature-plan.md`](agent-docs/v0.3.0-feature-plan.md), the unified onboarding implementation and release checklist
 - [`agent-docs/v0.3.0-onboarding-input-repair.md`](agent-docs/v0.3.0-onboarding-input-repair.md), the diagnosis and acceptance plan for the PowerShell input repair
+- [`agent-docs/v0.4.0-feature-plan.md`](agent-docs/v0.4.0-feature-plan.md), the final reliability-evidence prerelease plan
+- [`agent-docs/v0.4.0-windows-mki-acceptance.md`](agent-docs/v0.4.0-windows-mki-acceptance.md), the v1.0.0 Windows MkI physical release record
 - [`agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md`](agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md), the original implementation brief
 - [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record
 - [`agent-docs/v0.2.0-windows-hardware-acceptance.md`](agent-docs/v0.2.0-windows-hardware-acceptance.md), the historical v0.2.0 Windows acceptance record

@@ -114,6 +114,11 @@ def buildParser() -> argparse.ArgumentParser:
     run.add_argument("--name")
     run.add_argument("--address")
     run.add_argument("--scan-timeout", type=float)
+    run.add_argument(
+        "--duration-seconds",
+        type=float,
+        help="stop a run session cleanly after this positive duration; actions remain opt-in",
+    )
     run.add_argument("--pair", action=argparse.BooleanOptionalAction, default=None)
     mode = run.add_mutually_exclusive_group()
     mode.add_argument(
@@ -479,7 +484,27 @@ async def asyncCommand(args: argparse.Namespace) -> RunMetrics | None:
             ledFeedback=ledFeedback,
             resetLeds=args.reset_leds,
         )
-        await client.run()
+        durationTask = None
+        stopEvent = asyncio.Event()
+        if args.duration_seconds is not None:
+            if args.duration_seconds <= 0:
+                raise ValueError("--duration-seconds must be positive")
+
+            async def stopAfterDuration() -> None:
+                await asyncio.sleep(args.duration_seconds)
+                metrics.stopReason = "duration-limit"
+                logger.info("session stop_reason=duration-limit duration_seconds=%g", args.duration_seconds)
+                stopEvent.set()
+
+            durationTask = asyncio.create_task(stopAfterDuration(), name="session-duration")
+        try:
+            await client.run(stopEvent)
+        finally:
+            if durationTask is not None:
+                durationTask.cancel()
+                await asyncio.gather(durationTask, return_exceptions=True)
+        if metrics.stopReason is None:
+            metrics.stopReason = "stopped"
         return metrics
     finally:
         router.releaseAll()
@@ -512,6 +537,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("shutdown requested")
         metrics = getattr(args, "metrics", None)
         if metrics is not None:
+            metrics.stopReason = "interrupted"
             logger.info("summary=%s", json.dumps(metrics.snapshot(), separators=(",", ":")))
         return 130
     except (ConfigError, ValueError, RuntimeError) as error:

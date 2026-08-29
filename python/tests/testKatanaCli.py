@@ -8,6 +8,7 @@ from typing import ClassVar
 from unittest.mock import patch
 
 from blueboard_macro_handler.cli import (
+    asyncCommand,
     buildParser,
     configurationSummaryLines,
     configurePedalboard,
@@ -71,6 +72,41 @@ class KatanaCliTests(unittest.TestCase):
         args = buildParser().parse_args(["katana-test", "--output", "KATANA", "--control", "16"])
         with self.assertRaisesRegex(ValueError, "--value is required"):
             sendKatanaTest(args)
+
+    def testBoundedDryRunStopsCleanlyWithoutOpeningKatana(self) -> None:
+        class DurationClient:
+            receivedStopEvent = None
+
+            def __init__(self, *_args, **_kwargs) -> None:
+                pass
+
+            async def run(self, stopEvent) -> None:
+                self.__class__.receivedStopEvent = stopEvent
+                await stopEvent.wait()
+
+        with tempfile.TemporaryDirectory() as directory:
+            configPath = Path(directory) / "config.json"
+            writeConfig(katanaPedalboardConfig("KATANA"), configPath)
+            args = buildParser().parse_args([
+                "run", "--config", str(configPath), "--duration-seconds", "0.01",
+            ])
+            with patch("blueboard_macro_handler.cli.BlueBoardClient", DurationClient):
+                metrics = asyncio.run(asyncCommand(args))
+
+        self.assertIsNotNone(DurationClient.receivedStopEvent)
+        self.assertEqual(metrics.stopReason, "duration-limit")
+        self.assertEqual(metrics.katanaCommands, 0)
+        self.assertEqual(FakeTransport.instances, [])
+
+    def testRunRejectsNonPositiveDuration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            configPath = Path(directory) / "config.json"
+            writeConfig(katanaPedalboardConfig("KATANA"), configPath)
+            args = buildParser().parse_args([
+                "run", "--config", str(configPath), "--duration-seconds", "0",
+            ])
+            with self.assertRaisesRegex(ValueError, "duration-seconds must be positive"):
+                asyncio.run(asyncCommand(args))
 
     def testSelectsMainKatanaPortWithoutControlPorts(self) -> None:
         names = ("Microsoft GS Wavetable Synth 0", "KATANA 1", "KATANA DAW CTRL 2", "KATANA CTRL 3")

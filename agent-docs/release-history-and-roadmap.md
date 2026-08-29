@@ -71,6 +71,19 @@ syntax, Markdown link/fence checks, `git diff --check`, isolated sdist/wheel
 builds, and installed-wheel `--version`, `onboard --help`, `validate`, and replay
 smoke tests. Physical Windows onboarding and dry-run observations remain pending.
 
+## 0.4.0 reliability evidence prerelease
+
+Version 0.4.0 adds an explicitly bounded `run --duration-seconds` session and a
+Windows `recordPedalboardSession.ps1` helper. The helper writes timestamped,
+ignored JSON logs, remains dry-run by default, and requires `-Active` to enable
+configured actions. Final metrics now record whether a session reached its
+duration limit or was interrupted.
+
+This is the final prerelease scope before v1.0.0: stable support is limited to
+the original KATANA-100 (MkI) on Windows once the acceptance record is complete.
+Linux and MkII remain experimental; SysEx, expression control, authoritative
+state synchronization, and persistent state LEDs remain separate future work.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |
@@ -148,7 +161,7 @@ Exit: BlueBoard LEDs reflect verified amplifier state.
 - [ ] PC0/PC1 and the profile-specific CC assignments are physically confirmed and restored.
 - [ ] A-D, dry-run, opt-in actions, and momentary LEDs are smoke-tested; A/C/D actions are confirmed.
 - [ ] Katana and BlueBoard reconnect independently.
-- [ ] Rehearsal-duration metrics are recorded.
+- [ ] A timestamped v0.4 session log records the 60-minute rehearsal metrics.
 - [ ] `dev` is intentionally merged to `main`.
 - [ ] A release tag is created only from the validated `main` commit.
 

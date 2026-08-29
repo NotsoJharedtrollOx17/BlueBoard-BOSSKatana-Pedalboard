@@ -49,6 +49,7 @@ class RunMetrics:
     katanaCommands: int = 0
     katanaCommandFailures: int = 0
     katanaReconnects: int = 0
+    stopReason: str | None = None
 
     def beginConnection(self) -> None:
         if self.connectedAt is None:
@@ -59,11 +60,11 @@ class RunMetrics:
             self.connectedSeconds += monotonic() - self.connectedAt
             self.connectedAt = None
 
-    def snapshot(self) -> dict[str, int | float]:
+    def snapshot(self) -> dict[str, int | float | str]:
         connectedSeconds = self.connectedSeconds
         if self.connectedAt is not None:
             connectedSeconds += monotonic() - self.connectedAt
-        return {
+        snapshot: dict[str, int | float | str] = {
             "runtimeSeconds": round(monotonic() - self.startedAt, 3),
             "connectedSeconds": round(connectedSeconds, 3),
             "packets": self.packets,
@@ -78,3 +79,6 @@ class RunMetrics:
             "katanaCommandFailures": self.katanaCommandFailures,
             "katanaReconnects": self.katanaReconnects,
         }
+        if self.stopReason is not None:
+            snapshot["stopReason"] = self.stopReason
+        return snapshot
