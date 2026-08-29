@@ -5,32 +5,29 @@ import asyncio
 import json
 import logging
 import shutil
-import sys
-from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
 from . import __version__
+from . import onboarding as onboardingWorkflows
 from .actions import ActionDispatcher
 from .ble_midi import BleMidiDecoder
 from .client import BlueBoardClient, discoverBlueBoards
 from .config import (
     ConfigError,
     configAsDict,
-    katanaPedalboardConfig,
     katanaProfile,
     katanaProfiles,
     loadConfig,
-    pedalboardLayout,
     supportedEffects,
-    writeConfig,
 )
-from .katana import KatanaController, MidoMidiTransport, createControlChange, createProgramChange, resolveOutputName
+from .katana import KatanaController, MidoMidiTransport, createControlChange, createProgramChange
 from .led_feedback import LedFeedbackController
 from .logging_utils import configureLogging
 from .models import RunMetrics
-from .router import Router, actionDescription, buttonNames
-from .state import defaultStatePath, loadLastAddress, saveLastAddress
+from .onboarding import configurationSummaryLines, presetLabel
+from .router import Router
+from .state import defaultStatePath, loadLastAddress
 
 logger = logging.getLogger("blueboard.cli")
 
@@ -48,6 +45,7 @@ def logWelcome(command: str) -> None:
         "probe-effects": "interactive documented-effect switch probe (blueboard-katana probe-effects)",
         "configure": "read-only hardware discovery and local profile setup (blueboard-katana configure)",
         "doctor": "read-only installation and hardware readiness checks (blueboard-katana doctor)",
+        "onboard": "unified read-only Windows hardware onboarding (blueboard-katana onboard)",
     }.get(command, command)
     logger.info("================================================================================")
     logger.info("  BlueBoard + BOSS Katana Pedalboard v%s", __version__)
@@ -75,6 +73,27 @@ def addLoggingOptions(parser: argparse.ArgumentParser) -> None:
 def addRuntimeOptions(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", type=Path, default=defaultConfigPath())
     addLoggingOptions(parser)
+
+
+def addConfigurationOptions(parser: argparse.ArgumentParser) -> None:
+    addLoggingOptions(parser)
+    parser.add_argument("--config", type=Path, default=Path("blueboard-katana.json"))
+    parser.add_argument("--output", help="exact or uniquely matching Katana MIDI output override")
+    parser.add_argument("--model", choices=tuple(katanaProfiles))
+    parser.add_argument("--layout", choices=("panel-first", "channels-1-2"))
+    parser.add_argument("--midi-channel", type=int)
+    parser.add_argument("--firmware")
+    parser.add_argument("--name", default="BlueBoard", help="BlueBoard name substring")
+    parser.add_argument("--address", help="exact BlueBoard address when more than one is discoverable")
+    parser.add_argument("--scan-timeout", type=float, default=20.0)
+    parser.add_argument("--state-file", type=Path, default=defaultStatePath())
+    parser.add_argument("--non-interactive", action="store_true")
+    parser.add_argument(
+        "--accept-profile-state-defaults",
+        action="store_true",
+        help="accept the generated assumption that mapped effects initially start off",
+    )
+    parser.add_argument("--force", action="store_true", help="replace an existing generated profile")
 
 
 def buildParser() -> argparse.ArgumentParser:
@@ -151,24 +170,15 @@ def buildParser() -> argparse.ArgumentParser:
     )
 
     configure = commands.add_parser("configure", help="discover hardware and write a ready-to-run local profile")
-    addLoggingOptions(configure)
-    configure.add_argument("--config", type=Path, default=Path("blueboard-katana.json"))
-    configure.add_argument("--output", help="exact or uniquely matching Katana MIDI output override")
-    configure.add_argument("--model", choices=tuple(katanaProfiles))
-    configure.add_argument("--layout", choices=("panel-first", "channels-1-2"))
-    configure.add_argument("--midi-channel", type=int)
-    configure.add_argument("--firmware")
-    configure.add_argument("--name", default="BlueBoard", help="BlueBoard name substring")
-    configure.add_argument("--address", help="exact BlueBoard address when more than one is discoverable")
-    configure.add_argument("--scan-timeout", type=float, default=8.0)
-    configure.add_argument("--state-file", type=Path, default=defaultStatePath())
-    configure.add_argument("--non-interactive", action="store_true")
-    configure.add_argument(
-        "--accept-profile-state-defaults",
+    addConfigurationOptions(configure)
+
+    onboard = commands.add_parser("onboard", help="discover, configure, and verify hardware in one safe workflow")
+    addConfigurationOptions(onboard)
+    onboard.add_argument(
+        "--verify-existing",
         action="store_true",
-        help="accept the generated assumption that mapped effects initially start off",
+        help="freshly check the saved configuration without prompting or writing",
     )
-    configure.add_argument("--force", action="store_true", help="replace an existing generated profile")
 
     doctor = commands.add_parser("doctor", help="check installation and connected-device readiness without sending")
     addLoggingOptions(doctor)
@@ -192,152 +202,7 @@ def listMidiOutputs() -> None:
 
 
 def selectKatanaOutput(requestedName: str | None, availableNames: tuple[str, ...]) -> str:
-    if requestedName:
-        return resolveOutputName(requestedName, availableNames)
-    katanaNames = tuple(name for name in availableNames if "katana" in name.casefold())
-    mainNames = tuple(
-        name for name in katanaNames
-        if "ctrl" not in name.casefold() and "daw" not in name.casefold()
-    )
-    if len(mainNames) == 1:
-        return mainNames[0]
-    if len(katanaNames) == 1:
-        return katanaNames[0]
-    if not katanaNames:
-        raise RuntimeError("No Katana MIDI output found. Connect and power on the amp, then retry.")
-    names = ", ".join(repr(name) for name in katanaNames)
-    raise RuntimeError(f"Katana MIDI output is ambiguous: {names}. Retry with --output and the main port name.")
-
-
-def _katanaOutputCandidates(availableNames: tuple[str, ...]) -> tuple[str, ...]:
-    katanaNames = tuple(name for name in availableNames if "katana" in name.casefold())
-    mainNames = tuple(
-        name for name in katanaNames
-        if "ctrl" not in name.casefold() and "daw" not in name.casefold()
-    )
-    return mainNames or katanaNames
-
-
-def _promptChoice(prompt: str, choices, inputFunction, outputFunction, defaultIndex: int = 0):
-    outputFunction(prompt)
-    for index, (_value, label) in enumerate(choices, start=1):
-        suffix = " (default)" if index - 1 == defaultIndex else ""
-        outputFunction(f"  {index}. {label}{suffix}")
-    while True:
-        answer = inputFunction(f"Choose 1-{len(choices)} [{defaultIndex + 1}]: ").strip()
-        if not answer:
-            return choices[defaultIndex][0]
-        if answer.isdigit() and 1 <= int(answer) <= len(choices):
-            return choices[int(answer) - 1][0]
-        outputFunction("Enter one of the listed numbers.")
-
-
-def _promptText(prompt: str, default: str, inputFunction) -> str:
-    answer = inputFunction(f"{prompt} [{default}]: ").strip()
-    return answer or default
-
-
-def _confirm(prompt: str, inputFunction, outputFunction, *, default: bool = False) -> bool:
-    marker = "Y/n" if default else "y/N"
-    while True:
-        answer = inputFunction(f"{prompt} [{marker}]: ").strip().casefold()
-        if not answer:
-            return default
-        if answer in {"y", "yes"}:
-            return True
-        if answer in {"n", "no"}:
-            return False
-        outputFunction("Enter y or n.")
-
-
-def _presetLabel(preset: int) -> str:
-    labels = {
-        0: "A:CH1",
-        1: "A:CH2",
-        2: "A:CH3",
-        3: "A:CH4",
-        4: "Panel",
-        5: "B:CH1",
-        6: "B:CH2",
-        7: "B:CH3",
-        8: "B:CH4",
-    }
-    return labels.get(preset, f"Program {preset}")
-
-
-def configurationSummaryLines(config) -> tuple[str, ...]:
-    if config.katana is None:
-        return ("Katana: not configured",)
-    profile = katanaProfile(config.katana.model)
-    lines = (
-        f"Model   : {profile.displayName} ({profile.model})",
-        f"Output  : {config.katana.outputName}",
-        f"Channel : {config.katana.midiChannel}",
-        f"Firmware: {config.katana.firmware}",
-    )
-    bindings: list[str] = []
-    for binding in config.bindings:
-        button = buttonNames.get(binding.cc, f"CC{binding.cc}")
-        action = binding.action
-        if action is not None and action.type == "katana" and action.command == "selectPreset":
-            description = f"{_presetLabel(action.preset)} (Program Change {action.preset})"
-        elif action is not None and action.type == "katana" and action.effect:
-            label = profile.effectLabels.get(action.effect, action.effect)
-            controller = config.katana.effectControls.get(action.effect)
-            description = f"toggle {label} (CC{controller})"
-        else:
-            description = actionDescription(action)
-        bindings.append(f"Button {button}: {description}")
-    return (*lines, *bindings)
-
-
-def _selectOutputForConfigure(args, availableNames, interactive, inputFunction, outputFunction) -> str:
-    try:
-        return selectKatanaOutput(args.output, availableNames)
-    except RuntimeError:
-        candidates = _katanaOutputCandidates(availableNames)
-        if args.output or not interactive or len(candidates) < 2:
-            raise
-        return _promptChoice(
-            "More than one Katana MIDI output could be the main port:",
-            tuple((name, name) for name in candidates),
-            inputFunction,
-            outputFunction,
-        )
-
-
-def _selectBlueBoard(args, devices, interactive, inputFunction, outputFunction):
-    if args.address:
-        matches = [device for device in devices if device.address.casefold() == args.address.casefold()]
-        if len(matches) != 1:
-            raise RuntimeError(f"BlueBoard address {args.address!r} was not found during discovery")
-        return matches[0]
-    if len(devices) == 1:
-        return devices[0]
-    if not interactive:
-        raise RuntimeError("Multiple BlueBoards found; retry with --address in non-interactive mode")
-    choices = tuple(
-        (
-            device,
-            f"{device.name or '<unnamed>'} ({device.address}, RSSI={device.rssi})",
-        )
-        for device in devices
-    )
-    return _promptChoice("More than one BlueBoard was found:", choices, inputFunction, outputFunction)
-
-
-def _backupConfig(path: Path) -> Path:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
-    backup = path.with_name(f"{path.stem}.backup-{timestamp}.local.json")
-    counter = 1
-    while backup.exists():
-        backup = path.with_name(f"{path.stem}.backup-{timestamp}-{counter}.local.json")
-        counter += 1
-    try:
-        shutil.copy2(path, backup)
-    except OSError as error:
-        raise ConfigError(f"cannot back up {path}: {error}") from error
-    return backup
+    return onboardingWorkflows.selectKatanaOutput(requestedName, availableNames)
 
 
 async def configurePedalboard(
@@ -347,187 +212,40 @@ async def configurePedalboard(
     *,
     interactive: bool | None = None,
 ) -> None:
-    if interactive is None:
-        interactive = not args.non_interactive and sys.stdin.isatty() and sys.stdout.isatty()
-    if not interactive and not args.non_interactive:
-        raise ConfigError("configuration input is not interactive; retry with --non-interactive and explicit options")
-    replacing = args.config.exists()
-    if replacing and not args.force:
-        if not interactive:
-            raise ConfigError(f"{args.config} already exists; use --force to replace it")
-        try:
-            existing = loadConfig(args.config)
-            outputFunction("Existing configuration:")
-            for line in configurationSummaryLines(existing):
-                outputFunction(f"  {line}")
-        except ConfigError as error:
-            outputFunction(f"Existing configuration cannot be loaded: {error}")
-        if not _confirm("Replace this configuration?", inputFunction, outputFunction):
-            outputFunction("Configuration cancelled; the existing file was not changed.")
-            return
-
-    availableNames = MidoMidiTransport().listOutputNames()
-    outputName = _selectOutputForConfigure(args, availableNames, interactive, inputFunction, outputFunction)
-
-    model = args.model
-    if model is None:
-        if not interactive:
-            raise ConfigError("--model is required in non-interactive mode because MIDI ports do not identify generation")
-        model = _promptChoice(
-            "Select the amplifier generation:",
-            tuple((name, profile.displayName) for name, profile in katanaProfiles.items()),
-            inputFunction,
-            outputFunction,
-        )
-    profile = katanaProfile(model)
-    layoutName = args.layout
-    if layoutName is None and interactive:
-        choices = tuple((name, layout.displayName) for name, layout in profile.layouts.items())
-        defaultIndex = tuple(profile.layouts).index(profile.defaultLayout)
-        layoutName = _promptChoice("Select the starter button layout:", choices, inputFunction, outputFunction, defaultIndex)
-    selectedLayout = pedalboardLayout(profile, layoutName)
-
-    midiChannel = args.midi_channel
-    if midiChannel is None and interactive:
-        rawChannel = _promptText("MIDI receive channel", "1", inputFunction)
-        try:
-            midiChannel = int(rawChannel)
-        except ValueError as error:
-            raise ConfigError("MIDI receive channel must be a number from 1 to 16") from error
-    midiChannel = 1 if midiChannel is None else midiChannel
-    if not 1 <= midiChannel <= 16:
-        raise ConfigError("--midi-channel must be from 1 to 16")
-    firmware = args.firmware
-    if firmware is None and interactive:
-        firmware = _promptText("Firmware version for the evidence record", profile.defaultFirmware, inputFunction)
-    firmware = firmware or profile.defaultFirmware
-
-    if args.scan_timeout <= 0:
-        raise ConfigError("--scan-timeout must be positive")
-    outputFunction(f"Katana output : {outputName}")
-    outputFunction(f"Scanning up to {args.scan_timeout:g} seconds for a BlueBoard...")
-    devices = await discoverBlueBoards(args.name, args.scan_timeout)
-    if not devices:
-        raise RuntimeError("No BlueBoard found. Hold C while powering it on, then retry.")
-    device = _selectBlueBoard(args, devices, interactive, inputFunction, outputFunction)
-    config = katanaPedalboardConfig(
-        outputName,
-        args.name,
-        args.scan_timeout,
-        model=profile.model,
-        layout=selectedLayout.name,
-        midiChannel=midiChannel,
-        firmware=firmware,
+    await onboardingWorkflows.configurePedalboard(
+        args,
+        inputFunction,
+        outputFunction,
+        interactive=interactive,
+        midiTransportFactory=MidoMidiTransport,
+        discoverFunction=discoverBlueBoards,
     )
-
-    outputFunction("\nProposed configuration:")
-    for line in configurationSummaryLines(config):
-        outputFunction(f"  {line}")
-    boosterLabel = profile.effectLabels["booster"]
-    delayLabel = profile.effectLabels["delay"]
-    outputFunction(f"  Predicted state assumes {boosterLabel} and {delayLabel} start OFF for both selected sounds.")
-    outputFunction("  Panel, knob, GA-FC, or Tone Studio changes can make that prediction stale.")
-    if not args.accept_profile_state_defaults:
-        if not interactive:
-            raise ConfigError("--accept-profile-state-defaults is required in non-interactive mode")
-        if not _confirm("Are those starting-state assumptions correct?", inputFunction, outputFunction):
-            outputFunction("Configuration cancelled; make the states match or edit presetStates manually.")
-            return
-    if interactive and not _confirm("Write this configuration?", inputFunction, outputFunction):
-        outputFunction("Configuration cancelled; no files were changed.")
-        return
-
-    backup = _backupConfig(args.config) if replacing else None
-    writeConfig(config, args.config, force=replacing)
-    saveLastAddress(args.state_file, device.address)
-    outputFunction(f"BlueBoard     : {device.name or '<unnamed>'} ({device.address})")
-    outputFunction(f"Configuration : {args.config}")
-    if backup is not None:
-        outputFunction(f"Backup        : {backup}")
-    outputFunction("No MIDI commands were sent.")
-    outputFunction(f"Readiness check: blueboard-katana doctor --config {args.config}")
-    outputFunction(f"Next dry run  : blueboard-katana run --config {args.config} --debug")
-    outputFunction(f"Enable actions: blueboard-katana run --config {args.config} --debug --execute-actions")
-    if sys.platform == "win32":
-        outputFunction("PowerShell helpers: .\\diagnosePedalboard.ps1, then .\\runPedalboard.ps1 --debug")
 
 
 async def doctorPedalboard(args: argparse.Namespace, outputFunction=print) -> None:
-    failures: list[str] = []
-    warnings: list[str] = []
+    await onboardingWorkflows.doctorPedalboard(
+        args,
+        outputFunction,
+        midiTransportFactory=MidoMidiTransport,
+        discoverFunction=discoverBlueBoards,
+    )
 
-    version = sys.version_info[:2]
-    if (3, 10) <= version < (3, 13):
-        outputFunction(f"PASS Python: {sys.version.split()[0]}")
-    else:
-        message = f"Python {sys.version.split()[0]} is unsupported; use Python 3.10, 3.11, or 3.12"
-        outputFunction(f"FAIL Python: {message}")
-        failures.append(message)
 
-    try:
-        config = loadConfig(args.config)
-        outputFunction(f"PASS Configuration: {args.config}")
-    except ConfigError as error:
-        outputFunction(f"FAIL Configuration: {error}")
-        failures.append(str(error))
-        config = None
-
-    if config is not None and config.katana is None:
-        message = "configuration does not contain a Katana profile"
-        outputFunction(f"FAIL Katana profile: {message}")
-        failures.append(message)
-    elif config is not None:
-        try:
-            transport = MidoMidiTransport()
-            availableNames = transport.listOutputNames()
-            resolved = resolveOutputName(config.katana.outputName, availableNames)
-            outputFunction(f"PASS MIDI output: {resolved}")
-        except Exception as error:  # noqa: BLE001 - MIDI backends expose platform-specific exception types.
-            outputFunction(f"FAIL MIDI output: {error}")
-            failures.append(str(error))
-
-        timeout = config.scanTimeout if args.scan_timeout is None else args.scan_timeout
-        if timeout <= 0:
-            message = "scan timeout must be positive"
-            outputFunction(f"FAIL BlueBoard: {message}")
-            failures.append(message)
-            timeout = None
-        if timeout is None:
-            devices = None
-        else:
-            outputFunction(f"CHECK BlueBoard: scanning up to {timeout:g} seconds...")
-            try:
-                devices = await discoverBlueBoards(config.name, timeout)
-            except Exception as error:  # noqa: BLE001 - BLE backends expose platform-specific exception types.
-                message = f"BlueBoard discovery failed: {error}"
-                outputFunction(f"FAIL BlueBoard: {message}")
-                failures.append(message)
-                devices = None
-        if devices is not None:
-            if not devices:
-                message = "no matching BlueBoard found; hold C while powering it on and retry"
-                outputFunction(f"FAIL BlueBoard: {message}")
-                failures.append(message)
-            else:
-                savedAddress = loadLastAddress(args.state_file)
-                matchingSaved = [device for device in devices if device.address == savedAddress]
-                if savedAddress and not matchingSaved:
-                    message = "saved address was not found; runtime will fall back to name/service matching"
-                    outputFunction(f"WARN BlueBoard: {message}")
-                    warnings.append(message)
-                selected = matchingSaved[0] if matchingSaved else max(
-                    devices,
-                    key=lambda candidate: candidate.rssi if candidate.rssi is not None else -1000,
-                )
-                outputFunction(
-                    f"PASS BlueBoard: {selected.name or '<unnamed>'} ({selected.address}, RSSI={selected.rssi})"
-                )
-
-    if failures:
-        outputFunction(f"NOT READY: {len(failures)} required check(s) failed; no MIDI commands were sent.")
-        raise RuntimeError(f"doctor found {len(failures)} readiness problem(s)")
-    suffix = f" with {len(warnings)} warning(s)" if warnings else ""
-    outputFunction(f"READY{suffix}: configuration and connected devices are available; no MIDI commands were sent.")
+async def onboardPedalboard(
+    args: argparse.Namespace,
+    inputFunction=input,
+    outputFunction=print,
+    *,
+    interactive: bool | None = None,
+) -> None:
+    await onboardingWorkflows.onboardPedalboard(
+        args,
+        inputFunction,
+        outputFunction,
+        interactive=interactive,
+        midiTransportFactory=MidoMidiTransport,
+        discoverFunction=discoverBlueBoards,
+    )
 
 
 def sendKatanaTest(args: argparse.Namespace) -> RunMetrics:
@@ -638,7 +356,7 @@ def probeKatanaEffects(args: argparse.Namespace, inputFunction=input, outputFunc
             createProgramChange(channel - 1, program),
             f"programChange channel={channel} program={program}",
         )
-        outputFunction(f"Selected {_presetLabel(program)} (Program Change {program}).")
+        outputFunction(f"Selected {presetLabel(program)} (Program Change {program}).")
         outputFunction("Play a short phrase for each observation.")
         for effect in effects:
             controller = controls[effect]
@@ -700,6 +418,9 @@ def loadReplayPackets(path: Path) -> list[bytes]:
 async def asyncCommand(args: argparse.Namespace) -> RunMetrics | None:
     if args.command == "configure":
         await configurePedalboard(args)
+        return None
+    if args.command == "onboard":
+        await onboardPedalboard(args)
         return None
     if args.command == "doctor":
         await doctorPedalboard(args)

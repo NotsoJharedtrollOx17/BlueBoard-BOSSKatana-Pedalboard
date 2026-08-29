@@ -7,5 +7,5 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 if (-not (Test-Path -LiteralPath $configFile)) {
     throw "Local pedalboard configuration not found. Run .\configurePedalboard.ps1 first."
 }
-& $pythonExe -m blueboard_macro_handler doctor --config $configFile @args
+& $pythonExe -m blueboard_macro_handler doctor --config $configFile --scan-timeout 20 @args
 exit $LASTEXITCODE

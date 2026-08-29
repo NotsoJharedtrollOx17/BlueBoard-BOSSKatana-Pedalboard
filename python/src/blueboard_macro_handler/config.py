@@ -127,7 +127,7 @@ class Binding:
 class AppConfig:
     bindings: tuple[Binding, ...]
     name: str = "BlueBoard"
-    scanTimeout: float = 8.0
+    scanTimeout: float = 20.0
     pair: bool = False
     katana: KatanaConfig | None = None
 
@@ -266,7 +266,7 @@ def loadConfig(path: Path) -> AppConfig:
         bindings.append(Binding(cc, edge, parseAction(raw.get("action"), f"bindings[{index}].action"), channel, cooldownMs))
 
     device = _requireObject(root.get("device", {}), "device")
-    name, timeout, pair = device.get("name", "BlueBoard"), device.get("scanTimeout", 8.0), device.get("pair", False)
+    name, timeout, pair = device.get("name", "BlueBoard"), device.get("scanTimeout", 20.0), device.get("pair", False)
     if not isinstance(name, str) or not isinstance(timeout, (int, float)) or timeout <= 0 or not isinstance(pair, bool):
         raise ConfigError("device name, scanTimeout, or pair is invalid")
     katana = parseKatana(root.get("katana"))
@@ -329,7 +329,7 @@ def configAsDict(config: AppConfig) -> dict[str, Any]:
 def katanaPedalboardConfig(
     outputName: str,
     deviceName: str = "BlueBoard",
-    scanTimeout: float = 8.0,
+    scanTimeout: float = 20.0,
     *,
     model: str = "katana100",
     layout: str | None = None,

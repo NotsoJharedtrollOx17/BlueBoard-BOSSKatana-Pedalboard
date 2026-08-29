@@ -12,7 +12,7 @@ feedback from
 It adds a separate USB-MIDI output path for documented Katana Program Change and
 Control Change messages.
 
-Status: `0.2.0` alpha development snapshot. The original KATANA-100 A/C/D path
+Status: `0.3.0` alpha development snapshot. The original KATANA-100 A/C/D path
 has been physically validated on Windows. B, independent reconnects, the full
 release smoke test, and a one-hour rehearsal run remain release gates.
 
@@ -27,8 +27,8 @@ release smoke test, and a one-hour rehearsal run remain release gates.
 - Dry-run by default. Amplifier and operating-system actions require
   `--execute-actions`.
 - Independent, opt-in momentary BlueBoard LEDs through `--led-feedback`.
-- Windows and Linux launch/setup helpers, replay fixtures, structured logging,
-  metrics, and a Windows/Linux CI definition.
+- Unified Windows onboarding plus specialist Windows/Linux helpers, replay
+  fixtures, structured logging, metrics, and a Windows/Linux CI definition.
 
 This milestone does not write Katana SysEx. Detailed effect type and parameter
 editing remains in BOSS Tone Studio until addresses are captured and reproduced on
@@ -59,7 +59,7 @@ attempts to reopen the configured MIDI output without stopping BlueBoard input.
   toolchain and is not a supported installation path for this release.
 - iRig BlueBoard configured in its validated mode 2 profile.
 - Original KATANA-100 or KATANA-100 MkII with a USB data cable. The original
-  KATANA-100 is the hardware-qualified target for v0.2.0.
+  KATANA-100 is the hardware-qualified target for v0.3.0.
 - Model-correct BOSS Tone Studio, compatible firmware, and the official BOSS USB
   driver on Windows.
 - Bluetooth support compatible with Bleak.
@@ -73,19 +73,35 @@ your OS and model rather than treating those versions as permanent constants.
 From PowerShell in this repository:
 
 ```powershell
-.\setupPedalboard.ps1
-.\configurePedalboard.ps1
-.\diagnosePedalboard.ps1
+.\onboardPedalboard.ps1
 .\runPedalboard.ps1 --debug
 ```
 
-`configurePedalboard.ps1` is the normal user path. Its guided wizard discovers
-both devices, asks for the amplifier generation and starter layout, records the
-MIDI channel and optional firmware, explains the predicted-state assumption,
-shows the complete A-D map, and confirms before writing the ignored local profile
-at `python/config/katana-pedalboard.local.json`. It never opens a MIDI output or
-sends MIDI to the amplifier. Unique devices are selected automatically; ambiguous
-Katana outputs or BlueBoards are presented as numbered choices.
+`onboardPedalboard.ps1` is the normal first-run path. It reuses a compatible local
+v0.3.0 environment or runs setup first, then enumerates Katana MIDI outputs and
+scans for the BlueBoard concurrently. One typed discovery snapshot feeds both the
+guided configuration and readiness evaluation, so the same devices are not
+scanned twice. The wizard asks for the amplifier generation and starter layout,
+records the MIDI channel and optional firmware, explains the predicted-state
+assumption, shows the complete A-D map, and confirms before writing the ignored
+local profile at `python/config/katana-pedalboard.local.json`.
+
+Onboarding never opens a MIDI output, sends MIDI, or executes an operating-system
+action. Unique devices are selected automatically; ambiguous Katana outputs or
+BlueBoards are presented as numbered choices. If one discovery source fails,
+interactive onboarding can retry that source without discarding the successful
+result from the other device.
+
+The default diagnostic scan is 20 seconds. `scanBlueBoard.ps1` and
+`diagnosePedalboard.ps1` also apply that timeout to older local profiles; pass
+`--scan-timeout SECONDS` after the script name to override it for one run.
+
+After it has written a profile, running the same command again performs a fresh,
+read-only readiness check of that saved profile—there are no numbered setup
+questions to answer. To deliberately replace the profile, add `-Force` and use
+the native PowerShell options below. This avoids relying on PowerShell's raw
+argument forwarding, which can prevent the interactive wizard from receiving
+numbered selections in some terminals.
 
 The recommended original-KATANA profile is Panel-first:
 
@@ -99,34 +115,44 @@ The recommended original-KATANA profile is Panel-first:
 For repeatable or headless setup, specify every hardware decision explicitly:
 
 ```powershell
-.\configurePedalboard.ps1 --non-interactive --model katana100 `
-  --layout panel-first --output "KATANA 1" --address "BLUEBOARD-ADDRESS" `
-  --accept-profile-state-defaults
+.\onboardPedalboard.ps1 -NonInteractive -Model katana100 `
+  -Layout panel-first -Output "KATANA 1" -Address "BLUEBOARD-ADDRESS" `
+  -AcceptProfileStateDefaults -Force
 ```
 
 Non-interactive setup fails instead of guessing a model or choosing among
-ambiguous devices. Reconfiguration cancels by default; explicit replacement
-creates a timestamped ignored `.local.json` backup first.
+ambiguous devices. `-Output`, `-Model`, `-Layout`, `-MidiChannel`, `-Firmware`,
+`-Name`, `-Address`, and `-ScanTimeout` map directly to the onboarding CLI.
+Use `-VerifyExisting` to request the saved-profile check explicitly. Explicit
+replacement creates a timestamped ignored `.local.json` backup first.
 
-`diagnosePedalboard.ps1` is read-only. It checks Python compatibility, the
+The former three-step tools remain available for troubleshooting:
+
+```powershell
+.\setupPedalboard.ps1
+.\configurePedalboard.ps1
+.\diagnosePedalboard.ps1
+```
+
+`diagnosePedalboard.ps1` always performs fresh read-only checks of Python, the
 configuration, MIDI backend/output resolution, and BlueBoard discovery. It
 returns exit code 0 when ready or 2 when a required check fails.
 
 If local PowerShell policy blocks scripts, use a process-scoped bypass:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setupPedalboard.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\onboardPedalboard.ps1
 ```
 
 If a compatible Python is installed but not registered with the Windows `py`
 launcher, pass its executable explicitly:
 
 ```powershell
-.\setupPedalboard.ps1 -Dev -PythonExe "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
+.\onboardPedalboard.ps1 -Dev -PythonExe "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
 ```
 
-Connect the amplifier with a USB data cable and use the exact output printed by
-the second command. Close BOSS Tone Studio for the first transport tests so port
+Connect the amplifier with a USB data cable and use the exact output selected by
+onboarding. Close BOSS Tone Studio for the first transport tests so port
 ownership is unambiguous.
 
 Test one documented preset message without involving the BlueBoard:
@@ -188,7 +214,7 @@ Momentary BlueBoard button lights are a separate opt-in feature:
 
 ## Linux quick start
 
-Linux remains experimental in v0.2.0: automated regressions run on Linux, but
+Linux remains experimental in v0.3.0: automated regressions run on Linux, but
 the full BlueBoard-to-amplifier path has not been physically qualified.
 
 ```bash
@@ -301,6 +327,7 @@ blueboard-katana midi-outputs
 blueboard-katana katana-test --output NAME (--program N | --control N --value N)
 blueboard-katana probe-effects (--output NAME | --config PATH) [--effects EFFECT ...]
 blueboard-katana configure [--output NAME] [--config PATH]
+blueboard-katana onboard [--output NAME] [--config PATH]
 blueboard-katana doctor --config PATH [--scan-timeout SECONDS]
 ```
 
@@ -308,6 +335,9 @@ blueboard-katana doctor --config PATH [--scan-timeout SECONDS]
 read-only. `katana-test` is intentionally a direct side-effect command and requires
 an explicit output plus message. `configure` discovers both devices and writes
 local state, but never opens a MIDI port or sends a command.
+`onboard` performs concurrent discovery, guided configuration, and readiness
+evaluation from one snapshot. It writes only after all required checks pass and
+the user confirms the proposed profile.
 `probe-effects` is an explicit, interactive hardware command constrained to the
 selected model profile. Raw-output use requires `--model`; configuration-based
 use derives the model and first preset. `doctor` is read-only and never opens the
@@ -347,9 +377,11 @@ See:
 - [`agent-docs/architecture-and-extension-guide.md`](agent-docs/architecture-and-extension-guide.md)
 - [`agent-docs/protocol-evidence-and-hardware-validation.md`](agent-docs/protocol-evidence-and-hardware-validation.md)
 - [`agent-docs/release-history-and-roadmap.md`](agent-docs/release-history-and-roadmap.md)
+- [`agent-docs/v0.3.0-feature-plan.md`](agent-docs/v0.3.0-feature-plan.md), the unified onboarding implementation and release checklist
+- [`agent-docs/v0.3.0-onboarding-input-repair.md`](agent-docs/v0.3.0-onboarding-input-repair.md), the diagnosis and acceptance plan for the PowerShell input repair
 - [`agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md`](agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md), the original implementation brief
 - [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record
-- [`agent-docs/v0.2.0-windows-hardware-acceptance.md`](agent-docs/v0.2.0-windows-hardware-acceptance.md), the release-gating Windows acceptance record
+- [`agent-docs/v0.2.0-windows-hardware-acceptance.md`](agent-docs/v0.2.0-windows-hardware-acceptance.md), the historical v0.2.0 Windows acceptance record
 
 ## License and independence
 

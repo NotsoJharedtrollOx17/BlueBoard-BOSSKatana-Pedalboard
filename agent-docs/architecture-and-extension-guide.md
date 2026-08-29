@@ -60,6 +60,21 @@ It never guesses an unknown toggle state.
 empty. A checksum helper and evidence model exist, but no production SysEx address
 or write path is enabled.
 
+### Onboarding boundary
+
+`onboarding.py` owns first-run discovery, profile drafting, and readiness
+evaluation. `DiscoverySnapshot` gathers MIDI output enumeration, BlueBoard BLE
+discovery, Python compatibility, and existing-configuration inspection without
+opening an output. MIDI enumeration runs in a worker thread while BLE discovery
+runs in the asyncio loop. The resulting snapshot is passed directly to both
+configuration generation and `ReadinessReport`; onboarding does not parse its own
+console output or repeat successful discovery.
+
+Interactive onboarding can refresh only a failed discovery source. Standalone
+`doctor` deliberately gathers a new snapshot so it describes current hardware
+rather than onboarding-time state. Configuration and state files are written only
+after readiness passes and the user confirms the proposed mapping.
+
 ### Side-effect boundary
 
 `ActionDispatcher.invoke()` always logs the requested action. Unless the process
@@ -79,6 +94,10 @@ scanning and SysEx remain outside this path.
 `doctor` is a repeatable read-only readiness check. It validates Python,
 configuration loading, MIDI backend/output resolution, and BlueBoard discovery.
 It never opens the MIDI output, sends a command, or changes saved state.
+
+`onboard` composes the read-only discovery, configuration, and doctor boundaries
+into one workflow. Its only possible side effects are confirmed local
+configuration, backup, and last-address writes.
 
 ## Configuration model
 

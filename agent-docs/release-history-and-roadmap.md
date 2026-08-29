@@ -46,6 +46,31 @@ sdist/wheel builds, and installed-wheel `--version`, `validate`, and fixture
 replay smoke tests. CI and the physical Windows acceptance record remain release
 gates.
 
+## 0.3.0 unified Windows onboarding prerelease
+
+Version 0.3.0 replaces the normal Windows setup/configure/doctor sequence with
+one `onboardPedalboard.ps1` entry point while retaining every specialist command.
+The launcher reuses a compatible local environment or runs setup first. The new
+Python `onboard` command then enumerates MIDI outputs and scans the BlueBoard
+concurrently, stores the results in a typed snapshot, and reuses that snapshot for
+profile generation and readiness evaluation.
+
+Onboarding remains read-only toward the Katana and operating system: it does not
+open the MIDI output, send a message, or execute an action. Configuration and the
+last-address state are written only after readiness passes and the user confirms
+the model-correct mapping. Standalone doctor continues to perform fresh discovery.
+
+The release remains Windows-first and alpha. Linux retains its existing
+experimental scripts and CI coverage but receives no unified onboarding launcher.
+Expression control, SysEx, authoritative state readback, and persistent
+amplifier-state LEDs remain deferred. See `v0.3.0-feature-plan.md` for the release
+checklist and physical Windows onboarding gate.
+
+Local source validation on 2026-08-25 passed 101 unit tests, Ruff, PowerShell
+syntax, Markdown link/fence checks, `git diff --check`, isolated sdist/wheel
+builds, and installed-wheel `--version`, `onboard --help`, `validate`, and replay
+smoke tests. Physical Windows onboarding and dry-run observations remain pending.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |
@@ -59,7 +84,7 @@ gates.
 | Original KATANA-100 USB-MIDI control | A/C/D validated on Windows | PC0, grouped CC16, and grouped CC17 physically observed 2026-08-23 |
 | KATANA-100 MkII USB-MIDI control | Source-supported, hardware unvalidated | Official profile and unit tests only; it is not the user's amplifier |
 | Interactive effect probe | Model-aware in source | Profile-derived labels/CCs; physical MkI probe record pending |
-| Guided configuration and doctor | Implemented | Read-only discovery/readiness paths require Windows hardware smoke |
+| Unified onboarding, guided configuration, and doctor | Implemented | Snapshot reuse is automated; Windows hardware smoke remains pending |
 | Katana reconnect | Retry-on-next-command implemented | Simulated failure/reopen test |
 | Bidirectional state synchronization | Not implemented | Requires verified SysEx input/query path |
 | Deep parameter editing | Not implemented | Empty SysEx registry by design |
@@ -116,8 +141,8 @@ Exit: BlueBoard LEDs reflect verified amplifier state.
 - [ ] Unit tests and Ruff pass on supported Windows and Linux Python versions.
 - [ ] Wheel and sdist build from a clean `main` commit.
 - [ ] Installed wheel passes `--version`, `validate`, and fixture replay.
-- [ ] A fresh guided configuration selects `katana100`, Panel-first, `KATANA 1`, and the intended BlueBoard.
-- [ ] `doctor` passes without opening the MIDI output or sending a message.
+- [ ] Fresh unified onboarding selects `katana100`, Panel-first, `KATANA 1`, and the intended BlueBoard.
+- [ ] Onboarding and a subsequent fresh `doctor` pass without opening the MIDI output or sending a message.
 - [x] Amplifier generation, Tone Studio family, and port names are recorded.
 - [ ] Exact firmware and BOSS driver versions are recorded in the hardware note.
 - [ ] PC0/PC1 and the profile-specific CC assignments are physically confirmed and restored.
