@@ -1,5 +1,10 @@
 # BlueBoard + BOSS Katana Pedalboard
 
+> **Notice:** This independent, community-developed project is not affiliated
+> with, sponsored by, or endorsed by IK Multimedia, iRig, BOSS, Roland, or any
+> manufacturer of referenced hardware or software. Product names and trademarks
+> belong to their respective owners.
+
 A Python bridge that turns an iRig BlueBoard into a configurable four-button
 pedalboard for original and MkII BOSS KATANA-100 amplifiers. The original
 KATANA-100 on Windows is the release target; Linux remains an experimental,
@@ -15,6 +20,11 @@ Control Change messages.
 Status: `0.4.0` alpha reliability-evidence snapshot. The original KATANA-100
 A/C/D path has been physically validated on Windows. B, independent reconnects,
 the full release smoke test, and a one-hour rehearsal run remain v1.0.0 gates.
+
+## Author
+
+- Abraham Jhared Flores Azcona _(NotsoJharedtrollOx17)_
+  `abrahamjhared.flores@gmail.com`
 
 ## What the first milestone supports
 
@@ -401,13 +411,27 @@ See:
 - [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record
 - [`agent-docs/v0.2.0-windows-hardware-acceptance.md`](agent-docs/v0.2.0-windows-hardware-acceptance.md), the historical v0.2.0 Windows acceptance record
 
-## License and independence
-
-MIT License. Copyright 2026 Abraham Jhared Flores Azcona.
-
-This independent third-party project is not affiliated with, sponsored by, or
-endorsed by IK Multimedia, iRig, BOSS, or Roland. Product names and trademarks
-belong to their respective owners.
+## Third-party notices
 
 Mido is MIT-licensed. python-rtmidi is MIT-licensed and wraps RtMidi, which uses a
 permissive license. See each dependency's distribution for its complete notices.
+
+## License
+
+[MIT](LICENSE) © 2026 Abraham Jhared Flores Azcona.
+
+## Citation
+
+If you use this software in a project, publication, or technical report, please
+cite it as:
+
+```bibtex
+@misc{
+    floresazcona2026blueboardbosskatana,
+    title = {BlueBoard + BOSS Katana Pedalboard},
+    author = {Flores-Azcona, Abraham Jhared},
+    year = {2026},
+    month = {Aug},
+    url = {https://github.com/NotsoJharedtrollOx17/BlueBoard-BOSSKatana-Pedalboard}
+}
+```
