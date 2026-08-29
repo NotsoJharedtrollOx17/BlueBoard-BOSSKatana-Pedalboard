@@ -84,6 +84,11 @@ the original KATANA-100 (MkI) on Windows once the acceptance record is complete.
 Linux and MkII remain experimental; SysEx, expression control, authoritative
 state synchronization, and persistent state LEDs remain separate future work.
 
+Windows/MkI smoke validation on 2026-08-29 accepted v0.4.0 as a prerelease:
+dry-run, active A-D routing, momentary LEDs, Ctrl+C metrics, and independent
+BlueBoard/Katana reconnect behavior were observed. A duration-limited
+60-minute rehearsal remains a v1.0.0 gate.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |
