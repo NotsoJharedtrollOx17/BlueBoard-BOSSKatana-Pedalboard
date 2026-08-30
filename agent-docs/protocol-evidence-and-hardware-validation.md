@@ -34,7 +34,7 @@ Primary sources:
 
 ## Current source evidence
 
-The software constructs ordinary channel-voice messages only:
+The active runtime constructs ordinary channel-voice messages only:
 
 ```text
 Program Change: 0xC0 | channel, program
@@ -45,8 +45,17 @@ The transport resolves a requested output deterministically, opens it through
 Mido/RtMidi, sends one parsed message, and closes on shutdown. Tests use a fake
 transport and never require the amplifier.
 
-The SysEx parameter registry is empty. Community original-Katana maps are not
-treated as MkII proof.
+Version 0.5.0 also implements a pure original-KATANA-100 SysEx protocol layer. It
+constructs complete-wire RQ1 and DT1 frames, parses either complete-wire or Mido
+payload representations, validates seven-bit fields and checksums, and performs
+four-byte base-128 address arithmetic. Exact community reference vectors are
+covered by unit tests without opening a MIDI port.
+
+The SysEx registry contains six temporary-patch effect flags. Boost, Mod, FX,
+Delay, and Reverb are labeled `communityMkI`; the single-source Send/Return entry
+is `legacyKatana`. All have unknown firmware scope, probe-only read access, and no
+write access. Their presence records candidates for v0.6.0; it is not captured
+interoperability evidence or a production-read authorization.
 
 ## Windows observation, 2026-08-23
 
@@ -103,7 +112,7 @@ is intentionally omitted from committed documentation.
 
 This proves the Windows USB-MIDI path and the A/C/D performance path on the
 tested original KATANA-100. PC1/B, Reverb, Send/Return, expression input,
-independent reconnects, rehearsal-duration reliability, Linux, and SysEx remain
+rehearsal-duration reliability, Linux, and SysEx hardware behavior remain
 separate validation items.
 
 ## Windows hardware checklist
@@ -164,7 +173,7 @@ In addition to the Windows message order:
 
 ## SysEx discovery gate
 
-Before adding one address:
+Before promoting one candidate to production access:
 
 1. Capture a baseline with exact model/firmware metadata.
 2. Change one parameter only in Tone Studio.
@@ -172,8 +181,9 @@ Before adding one address:
 4. Issue a read query and correlate the response by address and length.
 5. Write one safe value, observe the amp and Tone Studio, then restore the original.
 6. Save sanitized capture bytes and provenance beside the test fixture.
-7. Add a guarded registry definition and negative tests.
+7. Promote the guarded registry definition to `capturedMkI` and attach the
+   sanitized fixture only after the preceding steps succeed.
 
 Until this sequence succeeds, the address category is `inferred`,
-`legacyKatana`, `communityMkII`, or `unverifiedPlaceholder` and is not writable by
-the production bridge.
+`legacyKatana`, `communityMkI`, or `unverifiedPlaceholder`; it is not production
+readable or writable by the bridge.

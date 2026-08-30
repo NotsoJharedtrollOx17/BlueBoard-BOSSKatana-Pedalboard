@@ -36,7 +36,14 @@ but not Program Change, Control Change, port names, or effect state.
 ### Katana boundary
 
 `katana/commands.py` is a pure byte-construction module. JSON uses MIDI channels
-1-16; commands use wire channels 0-15.
+1-16; commands use wire channels 0-15. Standard Program Change/Control Change and
+Mk I SysEx RQ1/DT1 builders all return complete wire bytes; only the standard
+messages are connected to runtime actions in v0.5.0.
+
+`katana/protocol.py` owns the Mk I frame constants, typed parser, seven-bit
+validation, base-128 address arithmetic, and Roland checksum logic. The parser
+requires callers to distinguish full-wire messages from Mido payloads, preventing
+`F0`/`F7` indexes from leaking into normalized frames.
 
 `katana/transport.py` owns Mido/RtMidi and port resolution. Selection order is:
 
@@ -56,9 +63,11 @@ lists outputs but never opens one, so configuration cannot change the amplifier.
 predicted state updates, one-command failure accounting, and reopen-on-next-action.
 It never guesses an unknown toggle state.
 
-`katana/parameters.py` reserves the firmware-scoped SysEx registry. It ships
-empty. A checksum helper and evidence model exist, but no production SysEx address
-or write path is enabled.
+`katana/parameters.py` contains the firmware-scoped SysEx observation registry.
+The six original-KATANA temporary-patch effect flags are recorded as community or
+legacy Mk I probe candidates with `firmwareRange: unknown`. None is production
+readable or writable. Evidence provenance and read/write authorization are
+separate fields so a community address cannot become safe merely by being listed.
 
 ### Onboarding boundary
 
@@ -89,7 +98,7 @@ discovery. It derives its model, channel, first Program Change, switch labels,
 and controllers from the selected configuration. Raw-output use requires an
 explicit model. It waits for a human observation between state changes, records
 no claim automatically, and attempts an OFF cleanup if interrupted. Arbitrary CC
-scanning and SysEx remain outside this path.
+scanning and runtime SysEx remain outside this path.
 
 `doctor` is a repeatable read-only readiness check. It validates Python,
 configuration loading, MIDI backend/output resolution, and BlueBoard discovery.
@@ -164,19 +173,22 @@ updates only when there is a real input-session implementation.
 7. Update both config examples and all relevant documentation.
 8. Record physical evidence separately from source/test evidence.
 
-## Adding SysEx later
+## Extending SysEx after v0.5.0
 
 Do not add raw addresses to button bindings. Add a `ParameterDefinition` with:
 
 - logical name;
 - four-byte seven-bit address;
-- data length and range;
-- exact model and firmware;
-- evidence category and fixture reference.
+- data length and decoder;
+- exact model and firmware range;
+- evidence category, read access, write access, safety notes, and fixture reference.
 
-Only `official` and reproduced model-specific capture entries should write by default.
-Queries need a MIDI input, response matcher, bounded worker, timeout, and reconnect
-cleanup. The router must never block waiting for a response.
+Community and legacy definitions may be used only by the future bounded probe.
+Production reads and validated writes require `official` or reproduced
+`capturedMkI` evidence plus explicit access authorization. Queries still need a
+MIDI input, response matcher, bounded worker, timeout, and reconnect cleanup; none
+of that transport/session behavior exists in v0.5.0. The router must never block
+waiting for a response.
 
 ## Branch and release process
 

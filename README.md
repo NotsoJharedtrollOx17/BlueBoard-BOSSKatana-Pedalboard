@@ -17,16 +17,17 @@ feedback from
 It adds a separate USB-MIDI output path for documented Katana Program Change and
 Control Change messages.
 
-Status: `0.4.0` alpha reliability-evidence snapshot. The original KATANA-100
-A/C/D path has been physically validated on Windows. B, independent reconnects,
-the full release smoke test, and a one-hour rehearsal run remain v1.0.0 gates.
+Status: `0.5.0` alpha SysEx protocol-core snapshot. The original KATANA-100 A/C/D
+standard-MIDI path has been physically validated on Windows. The new SysEx code
+is pure framing, parsing, arithmetic, and probe-candidate metadata; it does not
+open a MIDI input, query the amplifier, or establish hardware compatibility.
 
 ## Author
 
 - Abraham Jhared Flores Azcona _(NotsoJharedtrollOx17)_
   `abrahamjhared.flores@gmail.com`
 
-## What the first milestone supports
+## What v0.5.0 supports
 
 - BlueBoard A-D input as channel 1 CC20-CC23 with press/release edge routing.
 - BOSS preset selection through standard MIDI Program Change.
@@ -39,10 +40,15 @@ the full release smoke test, and a one-hour rehearsal run remain v1.0.0 gates.
 - Independent, opt-in momentary BlueBoard LEDs through `--led-feedback`.
 - Unified Windows onboarding plus specialist Windows/Linux helpers, replay
   fixtures, structured logging, metrics, and a Windows/Linux CI definition.
+- Pure original-KATANA-100 SysEx RQ1/DT1 builders, a strict frame parser,
+  base-128 address helpers, checksum verification, and evidence-aware definitions
+  for six read-only effect-state probe candidates.
 
-This milestone does not write Katana SysEx. Detailed effect type and parameter
-editing remains in BOSS Tone Studio until addresses are captured and reproduced on
-the exact target model and firmware.
+This milestone does not send, receive, or write Katana SysEx. Its low-level DT1
+builder exists only for protocol completeness and the future bounded editor-mode
+handshake; no configuration, action, transport, or CLI path exposes it. Live
+effect switching still uses the validated standard-MIDI CC path. SysEx read probes
+begin in v0.6.0 only after explicit input/output selection and hardware safeguards.
 
 ## Architecture
 
@@ -69,7 +75,8 @@ attempts to reopen the configured MIDI output without stopping BlueBoard input.
   toolchain and is not a supported installation path for this release.
 - iRig BlueBoard configured in its validated mode 2 profile.
 - Original KATANA-100 or KATANA-100 MkII with a USB data cable. The original
-  KATANA-100 is the hardware-qualified target for v0.4.0.
+  KATANA-100 remains the hardware-qualified runtime target; v0.5.0 makes no new
+  SysEx hardware claim.
 - Model-correct BOSS Tone Studio, compatible firmware, and the official BOSS USB
   driver on Windows.
 - Bluetooth support compatible with Bleak.
@@ -88,7 +95,7 @@ From PowerShell in this repository:
 ```
 
 `onboardPedalboard.ps1` is the normal first-run path. It reuses a compatible local
-v0.4.0 environment or runs setup first, then enumerates Katana MIDI outputs and
+v0.5.0 environment or runs setup first, then enumerates Katana MIDI outputs and
 scans for the BlueBoard concurrently. One typed discovery snapshot feeds both the
 guided configuration and readiness evaluation, so the same devices are not
 scanned twice. The wizard asks for the amplifier generation and starter layout,
@@ -240,7 +247,7 @@ a clean bounded session. Logs default to `logs\pedalboard-sessions`; an explicit
 
 ## Linux quick start
 
-Linux remains experimental in v0.4.0: automated regressions run on Linux, but
+Linux remains experimental in v0.5.0: automated regressions run on Linux, but
 the full BlueBoard-to-amplifier path has not been physically qualified.
 
 ```bash
@@ -277,8 +284,9 @@ remains a reference for manual customization. The layout is:
 The example `presetStates` table seeds the controller's predicted effect state
 after A or B selects a preset. Pressing a toggle before a known preset is selected
 fails clearly instead of guessing. Panel changes, GA-FC actions, or Tone Studio
-changes can make predicted state stale; bidirectional SysEx readback is the future
-solution.
+changes can make predicted state stale. v0.5.0 supplies the pure SysEx protocol
+foundation; bounded hardware reads start in v0.6.0 and authoritative state remains
+a later v1.0.0 gate.
 
 For the original KATANA-100, a Panel-first profile is included at
 [`python/config/katana-pedalboard-panel.example.json`](python/config/katana-pedalboard-panel.example.json).
@@ -379,7 +387,8 @@ feature/<name> -> dev -> main -> version tag
 
 - `dev` is the integration branch.
 - `main` is the release-ready branch.
-- SysEx work belongs in a separate feature branch with captured fixtures.
+- Runtime SysEx work belongs in a separate feature branch and must preserve the
+  capture/reproduction gate; v0.5.0 candidate definitions are not hardware proof.
 - `updatePedalboard.ps1 -Branch dev` and `updatePedalboard.sh --branch dev` support
   explicit development updates; production updates default to `main`.
 
@@ -407,6 +416,8 @@ See:
 - [`agent-docs/v0.3.0-onboarding-input-repair.md`](agent-docs/v0.3.0-onboarding-input-repair.md), the diagnosis and acceptance plan for the PowerShell input repair
 - [`agent-docs/v0.4.0-feature-plan.md`](agent-docs/v0.4.0-feature-plan.md), the final reliability-evidence prerelease plan
 - [`agent-docs/v0.4.0-windows-mki-acceptance.md`](agent-docs/v0.4.0-windows-mki-acceptance.md), the v1.0.0 Windows MkI physical release record
+- [`agent-docs/v0.5.0-feature-plan.md`](agent-docs/v0.5.0-feature-plan.md), the pure MkI SysEx protocol-core implementation and release gates
+- [`agent-docs/v1.0.0-mki-sysex-state-awareness-spec.md`](agent-docs/v1.0.0-mki-sysex-state-awareness-spec.md), the complete staged state-awareness specification
 - [`agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md`](agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md), the original implementation brief
 - [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record
 - [`agent-docs/v0.2.0-windows-hardware-acceptance.md`](agent-docs/v0.2.0-windows-hardware-acceptance.md), the historical v0.2.0 Windows acceptance record

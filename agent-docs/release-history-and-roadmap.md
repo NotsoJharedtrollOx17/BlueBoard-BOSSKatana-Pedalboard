@@ -96,6 +96,23 @@ dry-run, active A-D routing, momentary LEDs, Ctrl+C metrics, and independent
 BlueBoard/Katana reconnect behavior were observed. A duration-limited
 60-minute rehearsal remains a v1.0.0 gate.
 
+## 0.5.0 Mk I SysEx protocol-core prerelease
+
+Version 0.5.0 implements the hardware-independent protocol foundation for the
+revised v1 state-awareness target. It adds complete-wire Mk I RQ1/DT1 builders, a
+typed parser for complete-wire and Mido payload representations, strict seven-bit
+validation, Roland checksum verification, and four-byte base-128 arithmetic.
+
+The firmware-scoped registry now records the six temporary-patch effect switches
+as probe-only candidates. Five have cross-checked `communityMkI` provenance;
+Send/Return remains `legacyKatana`. Every entry has unknown firmware scope, no
+production-read authorization, and no write authorization.
+
+This release does not add a MIDI input, open or send through a new runtime port,
+query the amplifier, expose SysEx through actions or CLI, synchronize state, or
+claim that the target amplifier accepted an address. Those behaviors begin with
+the bounded v0.6.0 read probe and require dated target-hardware captures.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |
@@ -104,6 +121,8 @@ BlueBoard/Katana reconnect behavior were observed. A duration-limited
 | CC20-CC23 edge routing | Ported | Fixtures and router tests |
 | Momentary BlueBoard LEDs | Ported, opt-in | Prior hardware evidence; current regression tests |
 | Katana PC/CC byte construction | Implemented | Pure unit tests and official receive map |
+| Mk I SysEx framing/parser/arithmetic | Implemented, hardware-independent | Exact community vectors and strict negative unit tests |
+| Mk I effect-state address registry | Probe candidates only | Community/legacy provenance; unknown firmware; no production read/write access |
 | MIDI output resolution/transport | Implemented | Fake Mido transport tests |
 | Preset/effect controller state | Implemented, predicted | A/C/D physically validated; external changes can make state stale |
 | Original KATANA-100 USB-MIDI control | A/C/D validated on Windows | PC0, grouped CC16, and grouped CC17 physically observed 2026-08-23 |
@@ -112,7 +131,7 @@ BlueBoard/Katana reconnect behavior were observed. A duration-limited
 | Unified onboarding, guided configuration, and doctor | Implemented | Snapshot reuse is automated; Windows hardware smoke remains pending |
 | Katana reconnect | Retry-on-next-command implemented | Simulated failure/reopen test |
 | Bidirectional state synchronization | Not implemented | Requires verified SysEx input/query path |
-| Deep parameter editing | Not implemented | Empty SysEx registry by design |
+| Deep parameter editing | Not implemented | No deep-parameter definitions or runtime SysEx write path |
 | Persistent Katana-state LEDs | Not implemented | Requires authoritative state source |
 | C++17 port | Deferred | Python fixtures should become specification |
 
@@ -146,8 +165,8 @@ Exit: recorded Windows and Linux behavior for a release candidate.
 
 ### Phase 4: model-scoped SysEx research
 
-- Capture target-firmware traffic.
-- Implement a firmware-scoped parameter registry and guarded framing.
+- Implement guarded framing, parsing, arithmetic, and a probe-only registry.
+- Capture target-firmware traffic through the future bounded read probe.
 - Add a MIDI input, bounded query worker, response matcher, pacing, and timeouts.
 - Query, change, verify, and restore one parameter.
 
