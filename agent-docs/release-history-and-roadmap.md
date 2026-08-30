@@ -113,6 +113,21 @@ query the amplifier, expose SysEx through actions or CLI, synchronize state, or
 claim that the target amplifier accepted an address. Those behaviors begin with
 the bounded v0.6.0 read probe and require dated target-hardware captures.
 
+## 0.6.0 duplex read-only SysEx probe prerelease
+
+Version 0.6.0 adds deterministic MIDI input resolution, input-first duplex port
+ownership, a queue-only input callback, serialized RQ1/DT1 reply matching, bounded
+timeouts/retries, and explicit `midi-inputs` and `sysex-probe` commands. Probe
+targets are limited to current selection, the six registered live effect flags,
+and the predefined front-panel snapshot range. Arbitrary addresses and general
+DT1 writes are not exposed.
+
+The current-selection probe uses only the fixed temporary editor-mode handshake
+and attempts exit on every control path. Captures may be saved as sanitized JSON
+only after a second confirmation. This release still does not feed queried values
+into runtime actions, promote community candidates to production evidence, or
+claim hardware success before the target-amplifier acceptance record is complete.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |
@@ -124,13 +139,15 @@ the bounded v0.6.0 read probe and require dated target-hardware captures.
 | Mk I SysEx framing/parser/arithmetic | Implemented, hardware-independent | Exact community vectors and strict negative unit tests |
 | Mk I effect-state address registry | Probe candidates only | Community/legacy provenance; unknown firmware; no production read/write access |
 | MIDI output resolution/transport | Implemented | Fake Mido transport tests |
+| MIDI input resolution/duplex probe transport | Implemented, hardware pending | Input-first fake-Mido tests; target capture pending |
+| Read-only Mk I SysEx CLI | Implemented, hardware pending | Bounded request/reply tests; target checksum-valid replies pending |
 | Preset/effect controller state | Implemented, predicted | A/C/D physically validated; external changes can make state stale |
 | Original KATANA-100 USB-MIDI control | A/C/D validated on Windows | PC0, grouped CC16, and grouped CC17 physically observed 2026-08-23 |
 | KATANA-100 MkII USB-MIDI control | Source-supported, hardware unvalidated | Official profile and unit tests only; it is not the user's amplifier |
 | Interactive effect probe | Model-aware in source | Profile-derived labels/CCs; physical MkI probe record pending |
 | Unified onboarding, guided configuration, and doctor | Implemented | Snapshot reuse is automated; Windows hardware smoke remains pending |
 | Katana reconnect | Retry-on-next-command implemented | Simulated failure/reopen test |
-| Bidirectional state synchronization | Not implemented | Requires verified SysEx input/query path |
+| Bidirectional state synchronization | Not implemented | Diagnostic input/query exists; runtime snapshots/reconnect/post-action verification remain |
 | Deep parameter editing | Not implemented | No deep-parameter definitions or runtime SysEx write path |
 | Persistent Katana-state LEDs | Not implemented | Requires authoritative state source |
 | C++17 port | Deferred | Python fixtures should become specification |

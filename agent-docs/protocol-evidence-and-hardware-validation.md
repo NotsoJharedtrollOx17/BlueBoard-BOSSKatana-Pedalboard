@@ -45,7 +45,7 @@ The transport resolves a requested output deterministically, opens it through
 Mido/RtMidi, sends one parsed message, and closes on shutdown. Tests use a fake
 transport and never require the amplifier.
 
-Version 0.5.0 also implements a pure original-KATANA-100 SysEx protocol layer. It
+Version 0.5.0 implemented a pure original-KATANA-100 SysEx protocol layer. It
 constructs complete-wire RQ1 and DT1 frames, parses either complete-wire or Mido
 payload representations, validates seven-bit fields and checksums, and performs
 four-byte base-128 address arithmetic. Exact community reference vectors are
@@ -56,6 +56,14 @@ Delay, and Reverb are labeled `communityMkI`; the single-source Send/Return entr
 is `legacyKatana`. All have unknown firmware scope, probe-only read access, and no
 write access. Their presence records candidates for v0.6.0; it is not captured
 interoperability evidence or a production-read authorization.
+
+Version 0.6.0 connects those candidates to a bounded diagnostic only. It resolves
+input/output ports independently, opens the input first, sends one RQ1 request at
+a time, parses Mido callbacks off the callback thread, and correlates DT1 replies.
+It reports complete bytes, timing, retries, checksum failures, and unexpected
+addresses. Current-selection uses the fixed temporary editor-mode handshake and
+attempts exit in `finally`; no arbitrary DT1 write is exposed. Fake-Mido tests
+prove these source behaviors but not target-amplifier compatibility.
 
 ## Windows observation, 2026-08-23
 

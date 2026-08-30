@@ -19,6 +19,9 @@ BLE discovery and reconnect
        -> KatanaController
        -> MidoMidiTransport
        -> BOSS USB-MIDI port
+
+bounded diagnostic path:
+CLI -> KatanaSysExProbe -> input-first MidoMidiTransport -> RQ1/DT1
 ```
 
 ### BlueBoard boundary
@@ -38,7 +41,8 @@ but not Program Change, Control Change, port names, or effect state.
 `katana/commands.py` is a pure byte-construction module. JSON uses MIDI channels
 1-16; commands use wire channels 0-15. Standard Program Change/Control Change and
 Mk I SysEx RQ1/DT1 builders all return complete wire bytes; only the standard
-messages are connected to runtime actions in v0.5.0.
+messages are connected to runtime actions. In v0.6.0, RQ1 and the two fixed
+editor-handshake DT1 messages are connected only to the bounded diagnostic.
 
 `katana/protocol.py` owns the Mk I frame constants, typed parser, seven-bit
 validation, base-128 address arithmetic, and Roland checksum logic. The parser
@@ -51,6 +55,15 @@ requires callers to distinguish full-wire messages from Mido payloads, preventin
 2. case-insensitive exact name;
 3. one unique case-insensitive substring;
 4. otherwise fail with the available or ambiguous names.
+
+Inputs and outputs resolve independently. The duplex diagnostic opens the input
+first so its callback is installed before a request can trigger an immediate
+reply. The callback only copies the message and monotonic timestamp into a queue.
+
+`katana/session.py` owns the serialized v0.6.0 diagnostic path. It matches DT1
+replies by device ID, address, length, and checksum; retains invalid/unexpected
+traffic; applies bounded timeout/retry policy; and attempts editor-mode exit in
+`finally`. It never updates `KatanaController` state.
 
 The `configure` command adds a hybrid guided discovery layer above that
 transport. It selects unique devices automatically, presents numbered choices
@@ -88,7 +101,9 @@ after readiness passes and the user confirms the proposed mapping.
 
 `ActionDispatcher.invoke()` always logs the requested action. Unless the process
 was started with `--execute-actions`, it returns before obtaining a keyboard
-backend or Katana controller. `midi-outputs` is read-only. `katana-test` is a
+backend or Katana controller. `midi-inputs` and `midi-outputs` only enumerate
+ports. `sysex-probe` is a confirmed, predefined read diagnostic; its only DT1
+output is the fixed current-selection editor handshake. `katana-test` is a
 separate, explicit hardware command that requires both the output and MIDI data.
 The guided `configure` command is also MIDI-read-only; its side effects are
 limited to local configuration and last-address files.
@@ -158,8 +173,9 @@ The inherited runtime metrics are preserved. Katana adds:
 Bounded session runs also add `stopReason=duration-limit` to the final summary;
 Ctrl+C records `stopReason=interrupted`.
 
-Future bidirectional work may add queries, timeouts, and authoritative state
-updates only when there is a real input-session implementation.
+The v0.6.0 diagnostic also records input messages, SysEx requests/replies,
+timeouts, retries, checksum failures, and unexpected replies. These metrics do
+not imply authoritative runtime state.
 
 ## Adding a standard Katana command
 
@@ -173,7 +189,7 @@ updates only when there is a real input-session implementation.
 7. Update both config examples and all relevant documentation.
 8. Record physical evidence separately from source/test evidence.
 
-## Extending SysEx after v0.5.0
+## Extending SysEx after v0.6.0
 
 Do not add raw addresses to button bindings. Add a `ParameterDefinition` with:
 
@@ -183,12 +199,12 @@ Do not add raw addresses to button bindings. Add a `ParameterDefinition` with:
 - exact model and firmware range;
 - evidence category, read access, write access, safety notes, and fixture reference.
 
-Community and legacy definitions may be used only by the future bounded probe.
+Community and legacy definitions may be used only by the bounded probe.
 Production reads and validated writes require `official` or reproduced
-`capturedMkI` evidence plus explicit access authorization. Queries still need a
-MIDI input, response matcher, bounded worker, timeout, and reconnect cleanup; none
-of that transport/session behavior exists in v0.5.0. The router must never block
-waiting for a response.
+`capturedMkI` evidence plus explicit access authorization. Production
+synchronization still needs a dedicated worker, transaction guard, reconnect
+epoch/invalidation, coherent snapshots, and post-action verification. The router
+must never block waiting for a response.
 
 ## Branch and release process
 
