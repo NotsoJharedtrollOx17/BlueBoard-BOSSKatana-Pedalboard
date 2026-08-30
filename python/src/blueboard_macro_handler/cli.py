@@ -21,7 +21,15 @@ from .config import (
     loadConfig,
     supportedEffects,
 )
-from .katana import KatanaController, MidoMidiTransport, createControlChange, createProgramChange
+from .katana import (
+    KatanaController,
+    KatanaSysExProbe,
+    MidoMidiTransport,
+    SysExProbeReport,
+    createControlChange,
+    createProgramChange,
+    formatMidiBytes,
+)
 from .led_feedback import LedFeedbackController
 from .logging_utils import configureLogging
 from .models import RunMetrics
@@ -41,6 +49,8 @@ def logWelcome(command: str) -> None:
         "validate": "configuration validation (blueboard-katana validate)",
         "init-config": "configuration initialization (blueboard-katana init-config)",
         "midi-outputs": "read-only MIDI output discovery (blueboard-katana midi-outputs)",
+        "midi-inputs": "read-only MIDI input discovery (blueboard-katana midi-inputs)",
+        "sysex-probe": "bounded read-only Katana SysEx diagnostic (blueboard-katana sysex-probe)",
         "katana-test": "explicit standard-MIDI amplifier test (blueboard-katana katana-test)",
         "probe-effects": "interactive documented-effect switch probe (blueboard-katana probe-effects)",
         "configure": "read-only hardware discovery and local profile setup (blueboard-katana configure)",
@@ -150,6 +160,31 @@ def buildParser() -> argparse.ArgumentParser:
     midiOutputs = commands.add_parser("midi-outputs", help="list available MIDI output ports without sending")
     addLoggingOptions(midiOutputs)
 
+    midiInputs = commands.add_parser("midi-inputs", help="list available MIDI input ports without opening")
+    addLoggingOptions(midiInputs)
+
+    sysexProbe = commands.add_parser("sysex-probe", help="run a bounded predefined read-only Katana SysEx probe")
+    addLoggingOptions(sysexProbe)
+    sysexProbe.add_argument("--model", choices=("katana100",), required=True)
+    sysexProbe.add_argument("--input", required=True, help="exact or uniquely matching Katana MIDI input name")
+    sysexProbe.add_argument("--output", required=True, help="exact or uniquely matching Katana MIDI output name")
+    sysexProbe.add_argument(
+        "--read",
+        choices=("current-selection", "effect-states", "panel-snapshot"),
+        required=True,
+        help="predefined read-only diagnostic target",
+    )
+    sysexProbe.add_argument("--device-id", type=int, default=0, help="Roland SysEx device ID from 0 to 127")
+    sysexProbe.add_argument("--timeout-ms", type=int, default=750, help="positive timeout for each request attempt")
+    sysexProbe.add_argument("--retries", type=int, default=1, help="bounded retry count after a timeout")
+    sysexProbe.add_argument(
+        "--editor-settle-ms",
+        type=int,
+        default=75,
+        help="delay after the temporary editor handshake for current-selection",
+    )
+    sysexProbe.add_argument("--save-fixture", type=Path, help="save sanitized traffic JSON after a second confirmation")
+
     katanaTest = commands.add_parser("katana-test", help="send one explicit standard MIDI test message")
     addLoggingOptions(katanaTest)
     katanaTest.add_argument("--output", required=True, help="exact or uniquely matching MIDI output name")
@@ -204,6 +239,97 @@ def listMidiOutputs() -> None:
         return
     for name in names:
         print(name)
+
+
+def listMidiInputs() -> None:
+    names = MidoMidiTransport().listInputNames()
+    if not names:
+        print("No MIDI inputs found.")
+        return
+    for name in names:
+        print(name)
+
+
+def _printSysExReport(report: SysExProbeReport, outputFunction=print) -> None:
+    outputFunction(
+        f"Resolved ports: input={report.inputName!r} output={report.outputName!r} "
+        f"connectionEpoch={report.connectionEpoch}"
+    )
+    outputFunction("\nSysEx traffic (complete wire bytes)")
+    for record in report.traffic:
+        status = ""
+        if record.valid is not None:
+            status = " valid" if record.valid else f" invalid={record.error}"
+        outputFunction(
+            f"{record.direction.upper():<8} {record.elapsedMs:>9.3f} ms "
+            f"{record.purpose}{status} bytes={formatMidiBytes(record.data)}"
+        )
+        if record.frame is not None:
+            outputFunction(
+                f"         command={record.frame.command} deviceId={record.frame.deviceId} "
+                f"address={formatMidiBytes(record.frame.address)} data={formatMidiBytes(record.frame.data)} "
+                f"checksum={record.frame.checksum:02X}"
+            )
+    outputFunction("\nValidated observations")
+    for observation in report.observations:
+        raw = "<no reply>" if observation.rawData is None else formatMidiBytes(observation.rawData)
+        latency = "n/a" if observation.latencyMs is None else f"{observation.latencyMs:.3f} ms"
+        outcome = f"ERROR: {observation.error}" if observation.error else repr(observation.decoded)
+        outputFunction(
+            f"{observation.name}: address={formatMidiBytes(observation.address)} data={raw} "
+            f"decoded={outcome} attempts={observation.attempts} latency={latency}"
+        )
+
+
+def runSysExProbe(args: argparse.Namespace, inputFunction=input, outputFunction=print) -> SysExProbeReport | None:
+    if args.model != "katana100":
+        raise ConfigError("v0.6.0 SysEx probes support only the original KATANA-100 model (katana100)")
+    outputFunction("READ-ONLY SYSEX HARDWARE PROBE")
+    outputFunction("Close BOSS Tone Studio and any other MIDI application before continuing.")
+    outputFunction("Set the amplifier output volume to a safe level and back up important Tone Settings.")
+    outputFunction("Only predefined RQ1 reads are sent; current-selection also uses a temporary editor-mode handshake.")
+    if inputFunction("Type READ to open the selected MIDI ports and continue: ").strip() != "READ":
+        outputFunction("SysEx probe cancelled; no MIDI ports were opened and no messages were sent.")
+        return None
+
+    metrics = RunMetrics()
+    probe = KatanaSysExProbe(
+        MidoMidiTransport(),
+        deviceId=args.device_id,
+        timeoutMs=args.timeout_ms,
+        retries=args.retries,
+        editorSettleMs=args.editor_settle_ms,
+        metrics=metrics,
+    )
+    report = None
+    primaryError: BaseException | None = None
+    try:
+        probe.open(args.input, args.output, target=args.read, model=args.model)
+        report = probe.probe()
+    except BaseException as error:
+        primaryError = error
+        if probe.report is not None:
+            _printSysExReport(probe.report, outputFunction)
+        raise
+    finally:
+        try:
+            probe.close()
+        except Exception:
+            if primaryError is None:
+                raise
+            logger.exception("Katana SysEx probe port cleanup failed after an earlier error")
+    _printSysExReport(report, outputFunction)
+
+    if args.save_fixture is not None:
+        if args.save_fixture.exists():
+            raise ConfigError(f"{args.save_fixture} already exists; choose a new fixture path")
+        if inputFunction(f"Type SAVE to write sanitized capture {args.save_fixture}: ").strip() == "SAVE":
+            args.save_fixture.parent.mkdir(parents=True, exist_ok=True)
+            args.save_fixture.write_text(json.dumps(report.asFixture(), indent=2) + "\n", encoding="utf-8")
+            outputFunction(f"Saved sanitized SysEx fixture: {args.save_fixture}")
+        else:
+            outputFunction("Fixture save cancelled; probe results remain only in the console/log.")
+    return report
 
 
 def selectKatanaOutput(requestedName: str | None, availableNames: tuple[str, ...]) -> str:
@@ -523,10 +649,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     configureLogging(args.debug, args.json_logs, args.log_file)
     logWelcome(args.command)
+    exitCode = 0
     try:
         if args.command == "midi-outputs":
             listMidiOutputs()
             metrics = None
+        elif args.command == "midi-inputs":
+            listMidiInputs()
+            metrics = None
+        elif args.command == "sysex-probe":
+            report = runSysExProbe(args)
+            metrics = None if report is None else report.metrics
+            if report is not None and not report.success:
+                logger.error("SysEx probe completed without a validated observation for every requested value")
+                exitCode = 2
         elif args.command == "katana-test":
             metrics = sendKatanaTest(args)
         elif args.command == "probe-effects":
@@ -545,7 +681,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if metrics is not None:
         logger.info("summary=%s", json.dumps(metrics.snapshot(), separators=(",", ":")))
-    return 0
+    return exitCode
 
 
 if __name__ == "__main__":

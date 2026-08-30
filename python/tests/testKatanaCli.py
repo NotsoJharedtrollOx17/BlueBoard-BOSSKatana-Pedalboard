@@ -13,13 +13,17 @@ from blueboard_macro_handler.cli import (
     configurationSummaryLines,
     configurePedalboard,
     doctorPedalboard,
+    listMidiInputs,
     listMidiOutputs,
     probeKatanaEffects,
+    runSysExProbe,
     selectKatanaOutput,
     sendKatanaTest,
 )
 from blueboard_macro_handler.client import DiscoveredDevice
 from blueboard_macro_handler.config import ConfigError, katanaPedalboardConfig, writeConfig
+from blueboard_macro_handler.katana.commands import createSysExData
+from blueboard_macro_handler.katana.transport import ReceivedMidiMessage
 
 
 class FakeTransport:
@@ -36,15 +40,32 @@ class FakeTransport:
     def listOutputNames(self):
         return self.outputNames
 
+    def listInputNames(self):
+        return self.outputNames
+
     def open(self, name):
         self.outputName = name
         self.opened.append(name)
+
+    def openInput(self, name, callback):
+        self.inputName = name
+        self.callback = callback
+        self.opened.append(("input", name))
 
     def send(self, command):
         self.sent.append(command.data)
 
     def close(self):
         self.closed += 1
+
+
+class FakeSysExTransport(FakeTransport):
+    def send(self, command):
+        super().send(command)
+        if command.data[7] == 0x11:
+            address = command.data[8:12]
+            reply = createSysExData(0, address, (0,)).data
+            self.callback(ReceivedMidiMessage("sysex", reply[1:-1]))
 
 
 class KatanaCliTests(unittest.TestCase):
@@ -57,6 +78,45 @@ class KatanaCliTests(unittest.TestCase):
             listMidiOutputs()
         output.assert_any_call("KATANA")
         self.assertEqual(FakeTransport.instances[-1].opened, [])
+
+    def testMidiInputsIsReadOnly(self) -> None:
+        with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeTransport), patch("builtins.print") as output:
+            listMidiInputs()
+        output.assert_any_call("KATANA")
+        self.assertEqual(FakeTransport.instances[-1].opened, [])
+
+    def testSysExProbeRequiresExplicitPortsAndCanCancelWithoutOpening(self) -> None:
+        parser = buildParser()
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["sysex-probe", "--model", "katana100", "--read", "effect-states"])
+        args = parser.parse_args([
+            "sysex-probe", "--model", "katana100", "--input", "KATANA", "--output", "KATANA",
+            "--read", "effect-states",
+        ])
+        output = []
+        with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeTransport):
+            report = runSysExProbe(args, lambda _prompt: "CANCEL", output.append)
+        self.assertIsNone(report)
+        self.assertEqual(FakeTransport.instances, [])
+
+    def testSysExProbeReadsAllEffectsAndSavesConfirmedFixture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "capture.json"
+            args = buildParser().parse_args([
+                "sysex-probe", "--model", "katana100", "--input", "KATANA", "--output", "KATANA",
+                "--read", "effect-states", "--timeout-ms", "20", "--retries", "0",
+                "--save-fixture", str(fixture),
+            ])
+            answers = iter(("READ", "SAVE"))
+            output = []
+            with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeSysExTransport):
+                report = runSysExProbe(args, lambda _prompt: next(answers), output.append)
+            self.assertTrue(report.success)
+            self.assertEqual(len(report.observations), 6)
+            saved = json.loads(fixture.read_text(encoding="utf-8"))
+            self.assertEqual(saved["projectVersion"], "0.6.0")
+            self.assertTrue(saved["success"])
+            self.assertTrue(any("complete wire bytes" in line for line in output))
 
     def testKatanaTestSendsOneExplicitProgramChangeAndCloses(self) -> None:
         args = buildParser().parse_args(["katana-test", "--output", "KATANA", "--program", "0"])
