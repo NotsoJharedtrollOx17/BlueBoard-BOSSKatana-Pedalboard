@@ -88,6 +88,7 @@ def addRuntimeOptions(parser: argparse.ArgumentParser) -> None:
 def addConfigurationOptions(parser: argparse.ArgumentParser) -> None:
     addLoggingOptions(parser)
     parser.add_argument("--config", type=Path, default=Path("blueboard-katana.json"))
+    parser.add_argument("--input", help="exact or uniquely matching Katana MIDI input override")
     parser.add_argument("--output", help="exact or uniquely matching Katana MIDI output override")
     parser.add_argument("--model", choices=tuple(katanaProfiles))
     parser.add_argument("--layout", choices=("panel-first", "channels-1-2"))
@@ -283,7 +284,7 @@ def _printSysExReport(report: SysExProbeReport, outputFunction=print) -> None:
 
 def runSysExProbe(args: argparse.Namespace, inputFunction=input, outputFunction=print) -> SysExProbeReport | None:
     if args.model != "katana100":
-        raise ConfigError("v0.6.0 SysEx probes support only the original KATANA-100 model (katana100)")
+        raise ConfigError("SysEx probes support only the original KATANA-100 model (katana100)")
     outputFunction("READ-ONLY SYSEX HARDWARE PROBE")
     outputFunction("Close BOSS Tone Studio and any other MIDI application before continuing.")
     outputFunction("Set the amplifier output volume to a safe level and back up important Tone Settings.")
@@ -574,15 +575,27 @@ async def asyncCommand(args: argparse.Namespace) -> RunMetrics | None:
         for line in configurationSummaryLines(config):
             logger.info("configuration %s", line)
         if config.katana is not None:
-            logger.warning(
-                "Katana effect state is predicted; panel, knob, GA-FC, or Tone Studio changes can make it stale"
-            )
+            if config.katana.stateSync.enabled and args.execute_actions:
+                logger.info("Katana state synchronization requested for active runtime startup and recovery")
+            else:
+                logger.warning(
+                    "Katana effect state is predicted; panel, knob, GA-FC, or Tone Studio changes can make it stale"
+                )
+                if config.katana.model == "katana100" and not config.katana.stateSync.enabled:
+                    logger.warning(
+                        "Legacy Mk I profile: add inputName and stateSync settings or rerun onboarding to enable v0.7.0 state bootstrap"
+                    )
 
     metrics = RunMetrics()
     args.metrics = metrics
     katana = None
     if args.execute_actions and config.katana is not None:
         katana = KatanaController(config.katana, MidoMidiTransport(), metrics)
+        if args.command == "run" and config.katana.stateSync.enabled:
+            try:
+                await asyncio.wrap_future(katana.start())
+            except Exception as error:  # noqa: BLE001 - active run deliberately degrades to standard MIDI.
+                logger.warning("Katana startup synchronization unavailable; continuing safely: %s", error)
     actions = ActionDispatcher(execute=args.execute_actions, katana=katana)
     ledFeedback = LedFeedbackController(metrics) if getattr(args, "led_feedback", False) else None
     if getattr(args, "reset_leds", False) and ledFeedback is None:

@@ -9,7 +9,7 @@ from typing import Literal
 from .. import __version__
 from ..models import RunMetrics
 from .commands import MidiCommand, createSysExData, createSysExRead
-from .parameters import parameterDefinitions
+from .parameters import parameterDefinitions, productionDefinitionsFor
 from .protocol import SYSEX_END, SYSEX_START, KatanaSysExFrame, decodeBase128, parseKatanaSysEx
 from .transport import MidiTransport, ReceivedMidiMessage
 
@@ -115,12 +115,12 @@ class SysExProbeReport:
         }
 
 
-class KatanaSysExProbe:
-    """One bounded, serialized diagnostic SysEx reader.
+class KatanaSysExSession:
+    """One bounded, serialized Katana SysEx reader.
 
-    It deliberately does not update runtime/controller state. Incoming Mido
-    callback work is limited to copying and enqueueing messages; parsing and
-    matching happen on the caller thread.
+    Incoming Mido callback work is limited to copying and enqueueing messages;
+    parsing and matching happen on the owning caller/worker thread. Diagnostic
+    probes and the runtime state bootstrap share this request matcher.
     """
 
     def __init__(
@@ -388,6 +388,28 @@ class KatanaSysExProbe:
                 )
             )
 
+    def readProductionEffectStates(self, *, firmware: str) -> tuple[SysExObservation, ...]:
+        """Read every production-approved effect flag for the active model/firmware."""
+        if self.report is None:
+            raise RuntimeError("Katana SysEx session ports are not open")
+        definitions = productionDefinitionsFor(self.report.model, firmware)
+        if not definitions:
+            raise RuntimeError(
+                f"no production-approved SysEx effect definitions for "
+                f"model={self.report.model} firmware={firmware!r}"
+            )
+        observations = tuple(
+            self._queryExact(
+                definition.name,
+                definition.address,
+                definition.dataLength,
+                definition.decodeValue,
+            )
+            for definition in definitions
+        )
+        self.report.observations.extend(observations)
+        return observations
+
     def _queryPanelSnapshot(self) -> None:
         if self.report is None:
             raise RuntimeError("Katana SysEx probe ports are not open")
@@ -450,3 +472,7 @@ class KatanaSysExProbe:
         else:
             raise ValueError(f"unsupported SysEx probe target: {self.report.target!r}")
         return self.report
+
+
+class KatanaSysExProbe(KatanaSysExSession):
+    """Backward-compatible name for the bounded diagnostic CLI session."""

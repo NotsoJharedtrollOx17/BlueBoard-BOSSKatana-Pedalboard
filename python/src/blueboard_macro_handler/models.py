@@ -56,6 +56,11 @@ class RunMetrics:
     katanaSysExRetries: int = 0
     katanaSysExChecksumFailures: int = 0
     katanaSysExUnexpectedReplies: int = 0
+    katanaStateSyncs: int = 0
+    katanaStateSyncFailures: int = 0
+    katanaStateMismatches: int = 0
+    katanaStateInvalidations: int = 0
+    katanaInputReconnects: int = 0
     stopReason: str | None = None
 
     def beginConnection(self) -> None:
@@ -92,6 +97,11 @@ class RunMetrics:
             "katanaSysExRetries": self.katanaSysExRetries,
             "katanaSysExChecksumFailures": self.katanaSysExChecksumFailures,
             "katanaSysExUnexpectedReplies": self.katanaSysExUnexpectedReplies,
+            "katanaStateSyncs": self.katanaStateSyncs,
+            "katanaStateSyncFailures": self.katanaStateSyncFailures,
+            "katanaStateMismatches": self.katanaStateMismatches,
+            "katanaStateInvalidations": self.katanaStateInvalidations,
+            "katanaInputReconnects": self.katanaInputReconnects,
         }
         if self.stopReason is not None:
             snapshot["stopReason"] = self.stopReason

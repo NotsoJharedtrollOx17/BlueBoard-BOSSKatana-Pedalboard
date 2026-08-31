@@ -54,6 +54,37 @@ class KatanaConfigTests(unittest.TestCase):
         config = loadConfig(self.writeConfig(value))
         self.assertEqual(config.katana.effectControls, originalKatana100EffectControls)
 
+    def testLoadsEnabledMkIStateSynchronization(self) -> None:
+        value = self.baseConfig()
+        value["katana"].update({
+            "model": "katana100",
+            "firmware": "4.00",
+            "inputName": "KATANA IN",
+            "deviceId": 0,
+            "stateSync": {"enabled": True, "requestTimeoutMs": 500, "requestRetries": 2},
+        })
+        config = loadConfig(self.writeConfig(value))
+        self.assertEqual(config.katana.inputName, "KATANA IN")
+        self.assertTrue(config.katana.stateSync.enabled)
+        self.assertEqual(config.katana.stateSync.requestTimeoutMs, 500)
+        self.assertEqual(config.katana.stateSync.requestRetries, 2)
+
+    def testLegacyProfileKeepsStateSynchronizationDisabled(self) -> None:
+        config = loadConfig(self.writeConfig(self.baseConfig()))
+        self.assertFalse(config.katana.stateSync.enabled)
+        self.assertIsNone(config.katana.inputName)
+
+    def testRejectsStateSynchronizationForMkIIOrWithoutInput(self) -> None:
+        mkII = self.baseConfig()
+        mkII["katana"]["inputName"] = "KATANA"
+        mkII["katana"]["stateSync"] = {"enabled": True}
+        with self.assertRaisesRegex(ConfigError, "only model katana100"):
+            loadConfig(self.writeConfig(mkII))
+        mkI = self.baseConfig()
+        mkI["katana"].update({"model": "katana100", "stateSync": {"enabled": True}})
+        with self.assertRaisesRegex(ConfigError, "inputName is required"):
+            loadConfig(self.writeConfig(mkI))
+
     def testRoundTripRetainsKatanaFields(self) -> None:
         normalized = configAsDict(loadConfig(self.writeConfig(self.baseConfig())))
         self.assertEqual(normalized["katana"]["midiChannel"], 1)
@@ -101,6 +132,8 @@ class KatanaConfigTests(unittest.TestCase):
         config = katanaPedalboardConfig("KATANA 1")
         self.assertEqual(config.katana.outputName, "KATANA 1")
         self.assertEqual(config.katana.model, "katana100")
+        self.assertEqual(config.katana.inputName, "KATANA 1")
+        self.assertTrue(config.katana.stateSync.enabled)
         self.assertEqual(config.katana.effectControls, originalKatana100EffectControls)
         self.assertEqual([binding.cc for binding in config.bindings], [20, 21, 22, 23])
         self.assertEqual([config.bindings[0].action.preset, config.bindings[1].action.preset], [4, 1])

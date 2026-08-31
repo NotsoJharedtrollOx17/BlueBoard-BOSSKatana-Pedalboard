@@ -17,24 +17,24 @@ feedback from
 It adds a separate USB-MIDI path for documented Katana Program Change and
 Control Change messages plus bounded, read-only original-Katana SysEx probes.
 
-Status: `0.6.0` alpha bidirectional SysEx-probe snapshot. The original KATANA-100
-A/C/D standard-MIDI path has been physically validated on Windows. The new probe
-opens explicitly selected input/output ports, sends bounded RQ1 reads, validates
-DT1 replies, and can save a confirmed sanitized capture. Target-hardware SysEx
-acceptance remains pending until the owner runs and records the probe workflow.
+Status: `0.7.0` alpha runtime-state-bootstrap candidate. The original KATANA-100
+A/C/D standard-MIDI path and standalone six-effect SysEx reads have worked on the
+target amp. Runtime synchronization remains gated until the exact firmware and
+per-effect reproduction/restoration record are committed; source validation does
+not silently promote community addresses to production evidence.
 
 ## Author
 
 - Abraham Jhared Flores Azcona _(NotsoJharedtrollOx17)_
   `abrahamjhared.flores@gmail.com`
 
-## What v0.6.0 supports
+## What v0.7.0 supports
 
 - BlueBoard A-D input as channel 1 CC20-CC23 with press/release edge routing.
 - BOSS preset selection through standard MIDI Program Change.
 - Model-correct effect switches: grouped CC16-CC19 on the original KATANA-100
   and independent CC16-CC21 on MkII.
-- Exact or unique-substring MIDI output selection; no arbitrary first-port choice.
+- Independent exact or unique-substring MIDI input/output selection; no arbitrary first-port choice.
 - Predicted per-preset effect state with an explicit unknown-state failure.
 - Dry-run by default. Amplifier and operating-system actions require
   `--execute-actions`.
@@ -50,13 +50,18 @@ acceptance remains pending until the owner runs and records the probe workflow.
   flags, and a bounded raw front-panel snapshot; no arbitrary address or DT1 write.
 - Full sent/received bytes, decoded fields, checksum failures, timing, retries,
   connection epoch, structured metrics, and opt-in sanitized JSON fixtures.
+- A single non-blocking Katana worker that serializes live RQ1, Program Change,
+  and Control Change operations while BlueBoard BLE notifications continue.
+- Atomic six-effect startup/recovery snapshots, compound Booster/Mod and Delay/FX
+  derivation, per-value queried/predicted/unknown/stale sources, and safe degraded
+  behavior when a required read is unavailable.
 
-This milestone does not synchronize runtime action state or expose generic SysEx
-writes. The only DT1 messages emitted by `sysex-probe` are the documented temporary
-editor-mode enter/exit handshake around `current-selection`; exit is attempted on
-success, timeout, interruption, and failure. Live effect switching still uses the
-validated standard-MIDI CC path, and its state remains predicted until later staged
-releases connect validated readback to the controller.
+Runtime state synchronization is enabled only for an active Mk I profile whose
+model, exact firmware, and registry definitions are approved for production reads.
+Otherwise the run degrades safely: preset selection remains available and unknown
+toggles are rejected. v0.7.0 reads at startup and after detected transport recovery;
+post-PC/CC verification and continuous external-change awareness remain v0.8.0 work.
+No generic SysEx write is exposed.
 
 ## Architecture
 
@@ -65,16 +70,19 @@ iRig BlueBoard (BLE-MIDI)
         |
 BlueBoardClient -> BleMidiDecoder -> Router -> ActionDispatcher
                                               |
-                                      KatanaController
+                                      Katana worker queue
+                                              |
+                               KatanaRuntime / SysExSession
                                               |
                                        Mido / RtMidi
                                               |
                            KATANA USB-MIDI input/output
 ```
 
-The BlueBoard BLE lifecycle and Katana MIDI lifecycle are independent. A Katana
-transport failure is contained at the existing action boundary; the next command
-attempts to reopen the configured MIDI output without stopping BlueBoard input.
+The BlueBoard BLE lifecycle and Katana MIDI lifecycle are independent. The Katana
+worker owns both MIDI directions and one request at a time. A transport failure
+invalidates the current epoch; the next Katana operation reopens input before
+output and attempts bounded resynchronization without stopping BlueBoard input.
 
 ## Requirements
 
@@ -83,8 +91,8 @@ attempts to reopen the configured MIDI output without stopping BlueBoard input.
   toolchain and is not a supported installation path for this release.
 - iRig BlueBoard configured in its validated mode 2 profile.
 - Original KATANA-100 or KATANA-100 MkII with a USB data cable. The original
-  KATANA-100 remains the hardware-qualified runtime target; v0.6.0 makes no SysEx
-  hardware claim until the checked-in acceptance workflow is run on the target.
+  KATANA-100 remains the hardware-qualified runtime target; v0.7.0 does not claim
+  production state synchronization until its checked-in acceptance gate passes.
 - Model-correct BOSS Tone Studio, compatible firmware, and the official BOSS USB
   driver on Windows.
 - Bluetooth support compatible with Bleak.
@@ -103,16 +111,16 @@ From PowerShell in this repository:
 ```
 
 `onboardPedalboard.ps1` is the normal first-run path. It reuses a compatible local
-v0.6.0 environment or runs setup first, then enumerates Katana MIDI outputs and
+v0.7.0 environment or runs setup first, then enumerates Katana MIDI inputs/outputs and
 scans for the BlueBoard concurrently. One typed discovery snapshot feeds both the
 guided configuration and readiness evaluation, so the same devices are not
 scanned twice. The wizard asks for the amplifier generation and starter layout,
-records the MIDI channel and optional firmware, explains the predicted-state
+records the MIDI channel and firmware evidence, explains synchronization/prediction
 assumption, shows the complete A-D map, and confirms before writing the ignored
 local profile at `python/config/katana-pedalboard.local.json`.
 
-Onboarding never opens a MIDI output, sends MIDI, or executes an operating-system
-action. Unique devices are selected automatically; ambiguous Katana outputs or
+Onboarding never opens a MIDI port, sends MIDI, or executes an operating-system
+action. Unique devices are selected automatically; ambiguous Katana ports or
 BlueBoards are presented as numbered choices. If one discovery source fails,
 interactive onboarding can retry that source without discarding the successful
 result from the other device.
@@ -284,12 +292,13 @@ Additional bounded targets are `current-selection` and `panel-snapshot`.
 `current-selection` temporarily enters editor mode, waits 75 ms, performs the
 read, and attempts editor-mode exit in `finally`. `panel-snapshot` captures one or
 more returned chunks inside the predefined `00 00 04 00` range without pretending
-that gaps form one contiguous response. None of these commands updates the live
-pedalboard controller or promotes candidate addresses to production evidence.
+that gaps form one contiguous response. None of these diagnostic commands updates
+the live controller or promotes candidate addresses to production evidence. Active
+runtime uses the same matcher only after the registry's production-read gate passes.
 
 ## Linux quick start
 
-Linux remains experimental in v0.6.0: automated regressions run on Linux, but
+Linux remains experimental in v0.7.0: automated regressions run on Linux, but
 the full BlueBoard-to-amplifier path has not been physically qualified.
 
 ```bash
@@ -323,12 +332,11 @@ remains a reference for manual customization. The layout is:
 | C | CC22 press | Toggle Booster/Mod / CC16 |
 | D | CC23 press | Toggle Delay/FX / CC17 |
 
-The example `presetStates` table seeds the controller's predicted effect state
-after A or B selects a preset. Pressing a toggle before a known preset is selected
-fails clearly instead of guessing. Panel changes, GA-FC actions, or Tone Studio
-changes can make predicted state stale. v0.6.0 supplies bounded diagnostic SysEx
-reads, but does not feed those observations into runtime actions; authoritative
-controller state remains a later staged v1.0.0 gate.
+The Mk I example enables `stateSync`, records independent input/output names, and
+requests a six-effect snapshot at active startup. Queried values seed C/D safely.
+After A or B sends Program Change, `presetStates` remains the explicitly labeled
+prediction until v0.8.0 adds post-action readback. Panel, GA-FC, or Tone Studio
+changes are not continuously detected in v0.7.0.
 
 For the original KATANA-100, a Panel-first profile is included at
 [`python/config/katana-pedalboard-panel.example.json`](python/config/katana-pedalboard-panel.example.json).
@@ -340,8 +348,9 @@ to Delay/FX. Test it with:
   --config .\python\config\katana-pedalboard-panel.example.json --debug --execute-actions
 ```
 
-The Panel profile assumes Booster/Mod and Delay/FX are initially off. If the
-physical Panel state differs, update `presetStates["4"]` before using C or D.
+The Panel profile queries Booster/Mod and Delay/FX at active startup once its
+firmware evidence is approved. `presetStates["4"]` remains the prediction used
+after selecting Panel until v0.8.0 adds post-Program-Change verification.
 
 Validate any edited configuration without connecting hardware:
 
@@ -404,8 +413,8 @@ blueboard-katana midi-outputs
 blueboard-katana sysex-probe --model katana100 --input NAME --output NAME --read TARGET
 blueboard-katana katana-test --output NAME (--program N | --control N --value N)
 blueboard-katana probe-effects (--output NAME | --config PATH) [--effects EFFECT ...]
-blueboard-katana configure [--output NAME] [--config PATH]
-blueboard-katana onboard [--output NAME] [--config PATH]
+blueboard-katana configure [--input NAME] [--output NAME] [--config PATH]
+blueboard-katana onboard [--input NAME] [--output NAME] [--config PATH]
 blueboard-katana doctor --config PATH [--scan-timeout SECONDS]
 ```
 
@@ -421,8 +430,8 @@ evaluation from one snapshot. It writes only after all required checks pass and
 the user confirms the proposed profile.
 `probe-effects` is an explicit, interactive hardware command constrained to the
 selected model profile. Raw-output use requires `--model`; configuration-based
-use derives the model and first preset. `doctor` is read-only and never opens the
-MIDI output or sends a command.
+use derives the model and first preset. `doctor` is read-only and never opens a
+MIDI port or sends a command.
 
 ## Development and branches
 
@@ -434,9 +443,9 @@ feature/<name> -> dev -> main -> version tag
 
 - `dev` is the integration branch.
 - `main` is the release-ready branch.
-- Runtime SysEx synchronization remains later staged work and must preserve the
-  capture/reproduction gate; v0.6.0 probe candidates are not hardware proof until
-  the target-amplifier acceptance record is completed.
+- Runtime SysEx bootstrap is implemented behind the capture/reproduction gate;
+  probe candidates are not production-readable until exact-firmware evidence is
+  committed and their registry access is promoted deliberately.
 - `updatePedalboard.ps1 -Branch dev` and `updatePedalboard.sh --branch dev` support
   explicit development updates; production updates default to `main`.
 
@@ -467,6 +476,8 @@ See:
 - [`agent-docs/v0.5.0-feature-plan.md`](agent-docs/v0.5.0-feature-plan.md), the pure MkI SysEx protocol-core implementation and release gates
 - [`agent-docs/v0.6.0-feature-plan.md`](agent-docs/v0.6.0-feature-plan.md), the duplex read-only SysEx probe implementation and source gates
 - [`agent-docs/v0.6.0-sysex-hardware-acceptance.md`](agent-docs/v0.6.0-sysex-hardware-acceptance.md), the ordered target-amplifier capture checklist
+- [`agent-docs/v0.7.0-feature-plan.md`](agent-docs/v0.7.0-feature-plan.md), the runtime bootstrap implementation and source gates
+- [`agent-docs/v0.7.0-sysex-runtime-acceptance.md`](agent-docs/v0.7.0-sysex-runtime-acceptance.md), the exact-firmware production-read and reconnect checklist
 - [`agent-docs/v1.0.0-mki-sysex-state-awareness-spec.md`](agent-docs/v1.0.0-mki-sysex-state-awareness-spec.md), the complete staged state-awareness specification
 - [`agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md`](agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md), the original implementation brief
 - [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record

@@ -3,6 +3,8 @@ import asyncio
 import json
 import tempfile
 import unittest
+from contextlib import ExitStack
+from dataclasses import replace
 from pathlib import Path
 from typing import ClassVar
 from unittest.mock import patch
@@ -23,6 +25,7 @@ from blueboard_macro_handler.cli import (
 from blueboard_macro_handler.client import DiscoveredDevice
 from blueboard_macro_handler.config import ConfigError, katanaPedalboardConfig, writeConfig
 from blueboard_macro_handler.katana.commands import createSysExData
+from blueboard_macro_handler.katana.parameters import parameterDefinitions
 from blueboard_macro_handler.katana.transport import ReceivedMidiMessage
 
 
@@ -114,7 +117,7 @@ class KatanaCliTests(unittest.TestCase):
             self.assertTrue(report.success)
             self.assertEqual(len(report.observations), 6)
             saved = json.loads(fixture.read_text(encoding="utf-8"))
-            self.assertEqual(saved["projectVersion"], "0.6.0")
+            self.assertEqual(saved["projectVersion"], "0.7.0")
             self.assertTrue(saved["success"])
             self.assertTrue(any("complete wire bytes" in line for line in output))
 
@@ -168,6 +171,46 @@ class KatanaCliTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duration-seconds must be positive"):
                 asyncio.run(asyncCommand(args))
 
+    def testActiveRunBootstrapsDuplexStateBeforeBlueBoardClient(self) -> None:
+        class ImmediateClient:
+            def __init__(self, *_args, **_kwargs) -> None:
+                transport = FakeTransport.instances[-1]
+                self.__class__.katanaWasReady = transport.opened[:2] == [("input", "KATANA"), "KATANA"]
+
+            async def run(self, _stopEvent) -> None:
+                return
+
+        production = {
+            name: replace(
+                definition,
+                firmwareRange="4.00",
+                evidence="capturedMkI",
+                readAccess="production",
+            )
+            for name, definition in parameterDefinitions.items()
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            configPath = Path(directory) / "config.json"
+            writeConfig(katanaPedalboardConfig("KATANA", firmware="4.00"), configPath)
+            args = buildParser().parse_args([
+                "run", "--config", str(configPath), "--execute-actions",
+            ])
+            with ExitStack() as stack:
+                stack.enter_context(patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeSysExTransport))
+                stack.enter_context(patch("blueboard_macro_handler.cli.BlueBoardClient", ImmediateClient))
+                stack.enter_context(patch(
+                    "blueboard_macro_handler.katana.parameters.parameterDefinitions", production
+                ))
+                stack.enter_context(patch(
+                    "blueboard_macro_handler.katana.session.parameterDefinitions", production
+                ))
+                metrics = asyncio.run(asyncCommand(args))
+        transport = FakeTransport.instances[-1]
+        self.assertTrue(ImmediateClient.katanaWasReady)
+        self.assertEqual(metrics.katanaStateSyncs, 1)
+        self.assertEqual(metrics.katanaSysExRequests, 6)
+        self.assertEqual(transport.closed, 1)
+
     def testSelectsMainKatanaPortWithoutControlPorts(self) -> None:
         names = ("Microsoft GS Wavetable Synth 0", "KATANA 1", "KATANA DAW CTRL 2", "KATANA CTRL 3")
         self.assertEqual(selectKatanaOutput(None, names), "KATANA 1")
@@ -204,6 +247,8 @@ class KatanaCliTests(unittest.TestCase):
             config = json.loads(configPath.read_text(encoding="utf-8"))
             state = json.loads(statePath.read_text(encoding="utf-8"))
             self.assertEqual(config["katana"]["outputName"], "KATANA 1")
+            self.assertEqual(config["katana"]["inputName"], "KATANA 1")
+            self.assertTrue(config["katana"]["stateSync"]["enabled"])
             self.assertEqual(config["katana"]["model"], "katana100")
             self.assertEqual(config["bindings"][0]["action"]["preset"], 4)
             self.assertEqual(config["bindings"][2]["action"]["effect"], "booster")
@@ -358,7 +403,7 @@ class KatanaCliTests(unittest.TestCase):
             output: list[str] = []
             with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeTransport), patch(
                 "blueboard_macro_handler.cli.discoverBlueBoards", discover
-            ), self.assertRaisesRegex(RuntimeError, "2 readiness"):
+            ), self.assertRaisesRegex(RuntimeError, "3 readiness"):
                 asyncio.run(doctorPedalboard(args, output.append))
             self.assertEqual(FakeTransport.instances[-1].opened, [])
             self.assertTrue(any(line.startswith("NOT READY") for line in output))

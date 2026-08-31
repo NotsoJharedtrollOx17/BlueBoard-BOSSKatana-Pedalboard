@@ -16,7 +16,8 @@ BLE discovery and reconnect
   -> BleMidiDecoder
   -> Router
   -> ActionDispatcher
-       -> KatanaController
+       -> KatanaRuntime single-worker queue
+       -> KatanaSysExSession
        -> MidoMidiTransport
        -> BOSS USB-MIDI port
 
@@ -40,9 +41,9 @@ but not Program Change, Control Change, port names, or effect state.
 
 `katana/commands.py` is a pure byte-construction module. JSON uses MIDI channels
 1-16; commands use wire channels 0-15. Standard Program Change/Control Change and
-Mk I SysEx RQ1/DT1 builders all return complete wire bytes; only the standard
-messages are connected to runtime actions. In v0.6.0, RQ1 and the two fixed
-editor-handshake DT1 messages are connected only to the bounded diagnostic.
+Mk I SysEx RQ1/DT1 builders all return complete wire bytes. Standard PC/CC remains
+the runtime actuation plane; v0.7.0 adds production-approved RQ1 reads as a state
+sensor. The two fixed editor-handshake DT1 messages remain diagnostic-only.
 
 `katana/protocol.py` owns the Mk I frame constants, typed parser, seven-bit
 validation, base-128 address arithmetic, and Roland checksum logic. The parser
@@ -60,10 +61,11 @@ Inputs and outputs resolve independently. The duplex diagnostic opens the input
 first so its callback is installed before a request can trigger an immediate
 reply. The callback only copies the message and monotonic timestamp into a queue.
 
-`katana/session.py` owns the serialized v0.6.0 diagnostic path. It matches DT1
+`katana/session.py` owns the shared serialized request matcher. It matches DT1
 replies by device ID, address, length, and checksum; retains invalid/unexpected
 traffic; applies bounded timeout/retry policy; and attempts editor-mode exit in
-`finally`. It never updates `KatanaController` state.
+`finally` for the diagnostic current-selection operation. The diagnostic wrapper
+records traffic; the runtime consumes only production-approved effect observations.
 
 The `configure` command adds a hybrid guided discovery layer above that
 transport. It selects unique devices automatically, presents numbered choices
@@ -72,9 +74,11 @@ non-interactive mode, shows the complete mapping, and confirms predicted-state
 assumptions before writing. Replacements create timestamped ignored backups. It
 lists outputs but never opens one, so configuration cannot change the amplifier.
 
-`katana/controller.py` owns lazy output opening, Program Change, effect state,
-predicted state updates, one-command failure accounting, and reopen-on-next-action.
-It never guesses an unknown toggle state.
+`katana/runtime.py` owns one worker queue for all runtime RQ1, Program Change, and
+Control Change operations. It opens input before output, publishes atomic six-flag
+snapshots, preserves individual members of grouped controls, invalidates connection
+epochs on failure, and attempts bootstrap again on reopen. BLE event handling never
+waits for a SysEx timeout. `katana/controller.py` retains the compatibility name.
 
 `katana/parameters.py` contains the firmware-scoped SysEx observation registry.
 The six original-KATANA temporary-patch effect flags are recorded as community or
@@ -85,7 +89,7 @@ separate fields so a community address cannot become safe merely by being listed
 ### Onboarding boundary
 
 `onboarding.py` owns first-run discovery, profile drafting, and readiness
-evaluation. `DiscoverySnapshot` gathers MIDI output enumeration, BlueBoard BLE
+evaluation. `DiscoverySnapshot` gathers MIDI input/output enumeration, BlueBoard BLE
 discovery, Python compatibility, and existing-configuration inspection without
 opening an output. MIDI enumeration runs in a worker thread while BLE discovery
 runs in the asyncio loop. The resulting snapshot is passed directly to both
@@ -117,7 +121,7 @@ scanning and runtime SysEx remain outside this path.
 
 `doctor` is a repeatable read-only readiness check. It validates Python,
 configuration loading, MIDI backend/output resolution, and BlueBoard discovery.
-It never opens the MIDI output, sends a command, or changes saved state.
+It never opens a MIDI port, sends a command, or changes saved state.
 
 `onboard` composes the read-only discovery, configuration, and doctor boundaries
 into one workflow. Its only possible side effects are confirmed local
@@ -151,16 +155,17 @@ settings for the connected model are authoritative.
 
 ## Lifecycle and failure behavior
 
-- The Katana output is opened lazily on the first executed Katana action.
+- A state-sync-enabled active run starts its Katana worker and performs a bounded
+  bootstrap before BlueBoard discovery. Legacy profiles retain lazy output opening.
 - Dry-run never imports Mido or opens a port.
-- A send/open failure increments `katanaCommandFailures`, closes the transport,
-  leaves BLE consumption running, and reaches the router's exception boundary.
-- The next action retries opening and increments `katanaReconnects` after the
-  first successful open.
-- Ctrl+C and normal shutdown call `ActionDispatcher.close()`, which closes both
-  initialized keyboard and Katana backends.
+- A send/open failure closes both directions, increments the connection epoch,
+  invalidates observed state, and leaves BLE consumption running.
+- The next queued Katana operation reopens input before output and attempts a
+  bounded resync. Unknown toggles are rejected; preset selection remains available.
+- Ctrl+C and normal shutdown drain the Katana queue, close both ports, and join
+  the worker before returning.
 - Selecting a preset replaces predicted effect state with the configured state
-  for that preset. Missing state remains unknown.
+  for that preset and labels the earlier queried snapshot stale.
 
 ## Metrics
 
@@ -169,6 +174,8 @@ The inherited runtime metrics are preserved. Katana adds:
 - `katanaCommands`;
 - `katanaCommandFailures`;
 - `katanaReconnects`.
+- `katanaStateSyncs`, `katanaStateSyncFailures`, and `katanaStateMismatches`;
+- `katanaStateInvalidations` and `katanaInputReconnects`.
 
 Bounded session runs also add `stopReason=duration-limit` to the final summary;
 Ctrl+C records `stopReason=interrupted`.
@@ -189,7 +196,7 @@ not imply authoritative runtime state.
 7. Update both config examples and all relevant documentation.
 8. Record physical evidence separately from source/test evidence.
 
-## Extending SysEx after v0.6.0
+## Extending SysEx after v0.7.0
 
 Do not add raw addresses to button bindings. Add a `ParameterDefinition` with:
 
@@ -201,10 +208,10 @@ Do not add raw addresses to button bindings. Add a `ParameterDefinition` with:
 
 Community and legacy definitions may be used only by the bounded probe.
 Production reads and validated writes require `official` or reproduced
-`capturedMkI` evidence plus explicit access authorization. Production
-synchronization still needs a dedicated worker, transaction guard, reconnect
-epoch/invalidation, coherent snapshots, and post-action verification. The router
-must never block waiting for a response.
+`capturedMkI` evidence plus explicit access authorization. v0.7.0 supplies the
+worker, transaction guard, reconnect epoch/invalidation, and coherent bootstrap
+snapshot. Post-action verification remains v0.8.0; the router must never block
+waiting for a response.
 
 ## Branch and release process
 

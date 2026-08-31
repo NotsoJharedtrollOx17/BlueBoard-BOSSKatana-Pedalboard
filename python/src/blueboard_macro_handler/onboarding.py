@@ -19,7 +19,8 @@ from .config import (
     pedalboardLayout,
     writeConfig,
 )
-from .katana import MidoMidiTransport, resolveOutputName
+from .katana import MidoMidiTransport, resolveInputName, resolveOutputName
+from .katana.parameters import productionDefinitionsFor
 from .router import actionDescription, buttonNames
 from .state import loadLastAddress, saveLastAddress
 
@@ -38,6 +39,7 @@ class DiscoverySnapshot:
     configExists: bool = False
     existingConfig: AppConfig | None = None
     existingConfigError: str | None = None
+    inputNames: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -84,15 +86,24 @@ async def collectDiscoverySnapshot(
     midiTransportFactory: MidiTransportFactory = MidoMidiTransport,
     discoverFunction: BlueBoardDiscovery = discoverBlueBoards,
 ) -> DiscoverySnapshot:
-    """Collect independent readiness inputs concurrently without opening MIDI outputs."""
+    """Collect independent readiness inputs concurrently without opening MIDI ports."""
 
-    async def listMidiOutputs() -> tuple[str, ...]:
-        return await asyncio.to_thread(lambda: tuple(midiTransportFactory().listOutputNames()))
+    async def listMidiPorts() -> tuple[tuple[str, ...], tuple[str, ...]]:
+        def collect() -> tuple[tuple[str, ...], tuple[str, ...]]:
+            transport = midiTransportFactory()
+            inputNames = tuple(transport.listInputNames()) if hasattr(transport, "listInputNames") else ()
+            return inputNames, tuple(transport.listOutputNames())
+
+        return await asyncio.to_thread(collect)
 
     async def scanBlueBoard() -> tuple[DiscoveredDevice, ...]:
         return tuple(await discoverFunction(name, timeout))
 
-    midiAwaitable = listMidiOutputs() if previous is None or refreshMidi else _constant(previous.outputNames)
+    midiAwaitable = (
+        listMidiPorts()
+        if previous is None or refreshMidi
+        else _constant((previous.inputNames, previous.outputNames))
+    )
     blueBoardAwaitable = (
         scanBlueBoard() if previous is None or refreshBlueBoard else _constant(previous.devices)
     )
@@ -109,10 +120,11 @@ async def collectDiscoverySnapshot(
     )
 
     if isinstance(midiResult, BaseException):
+        inputNames = ()
         outputNames = ()
         midiError = str(midiResult)
     else:
-        outputNames = midiResult
+        inputNames, outputNames = midiResult
         midiError = None if previous is None or refreshMidi else previous.midiError
     if isinstance(blueBoardResult, BaseException):
         devices = ()
@@ -137,6 +149,7 @@ async def collectDiscoverySnapshot(
         configExists=configExists,
         existingConfig=existingConfig,
         existingConfigError=existingConfigError,
+        inputNames=inputNames,
     )
 
 
@@ -161,6 +174,23 @@ def selectKatanaOutput(requestedName: str | None, availableNames: tuple[str, ...
         raise RuntimeError("No Katana MIDI output found. Connect and power on the amp, then retry.")
     names = ", ".join(repr(name) for name in katanaNames)
     raise RuntimeError(f"Katana MIDI output is ambiguous: {names}. Retry with --output and the main port name.")
+
+
+def selectKatanaInput(requestedName: str | None, availableNames: tuple[str, ...]) -> str:
+    if requestedName:
+        return resolveInputName(requestedName, availableNames)
+    katanaNames = tuple(name for name in availableNames if "katana" in name.casefold())
+    mainNames = tuple(
+        name for name in katanaNames if "ctrl" not in name.casefold() and "daw" not in name.casefold()
+    )
+    if len(mainNames) == 1:
+        return mainNames[0]
+    if len(katanaNames) == 1:
+        return katanaNames[0]
+    if not katanaNames:
+        raise RuntimeError("No Katana MIDI input found. Connect and power on the amp, then retry.")
+    names = ", ".join(repr(name) for name in katanaNames)
+    raise RuntimeError(f"Katana MIDI input is ambiguous: {names}. Retry with --input and the main port name.")
 
 
 def _katanaOutputCandidates(availableNames: tuple[str, ...]) -> tuple[str, ...]:
@@ -224,11 +254,14 @@ def configurationSummaryLines(config: AppConfig) -> tuple[str, ...]:
     if config.katana is None:
         return ("Katana: not configured",)
     profile = katanaProfile(config.katana.model)
+    syncStatus = "enabled" if config.katana.stateSync.enabled else "disabled (legacy prediction mode)"
     lines = (
         f"Model   : {profile.displayName} ({profile.model})",
+        *((f"Input   : {config.katana.inputName}",) if config.katana.inputName else ()),
         f"Output  : {config.katana.outputName}",
         f"Channel : {config.katana.midiChannel}",
         f"Firmware: {config.katana.firmware}",
+        f"Sync    : {syncStatus}",
     )
     bindings: list[str] = []
     for binding in config.bindings:
@@ -360,6 +393,10 @@ def _buildDraft(args, snapshot, interactive, inputFunction, outputFunction):
             outputFunction,
         )
     profile = katanaProfile(model)
+    inputName = None
+    if profile.model == "katana100":
+        requestedInput = args.input or (outputName if outputName in snapshot.inputNames else None)
+        inputName = selectKatanaInput(requestedInput, snapshot.inputNames)
     layoutName = args.layout
     if layoutName is None and interactive:
         choices = tuple((name, layout.displayName) for name, layout in profile.layouts.items())
@@ -395,6 +432,7 @@ def _buildDraft(args, snapshot, interactive, inputFunction, outputFunction):
         layout=selectedLayout.name,
         midiChannel=midiChannel,
         firmware=firmware,
+        inputName=inputName,
     )
     return config, profile, device
 
@@ -405,8 +443,12 @@ def _printDraft(config, profile, outputFunction) -> None:
         outputFunction(f"  {line}")
     boosterLabel = profile.effectLabels["booster"]
     delayLabel = profile.effectLabels["delay"]
-    outputFunction(f"  Predicted state assumes {boosterLabel} and {delayLabel} start OFF for both selected sounds.")
-    outputFunction("  Panel, knob, GA-FC, or Tone Studio changes can make that prediction stale.")
+    if config.katana is not None and config.katana.stateSync.enabled:
+        outputFunction("  Active startup will request the six live Mk I effect flags after the evidence gate passes.")
+    outputFunction(
+        f"  After preset selection, predicted state assumes {boosterLabel} and {delayLabel} start OFF."
+    )
+    outputFunction("  Panel, knob, GA-FC, or Tone Studio changes can make predictions stale.")
 
 
 def _confirmDraft(args, interactive, inputFunction, outputFunction) -> bool:
@@ -435,7 +477,7 @@ def _writeDraft(args, config, device, replacing, outputFunction) -> None:
 
 def _snapshotCollectionError(snapshot: DiscoverySnapshot) -> RuntimeError | None:
     if snapshot.midiError:
-        return RuntimeError(f"MIDI output discovery failed: {snapshot.midiError}")
+        return RuntimeError(f"MIDI port discovery failed: {snapshot.midiError}")
     if not snapshot.outputNames:
         return RuntimeError("No MIDI outputs found. Connect and power on the Katana, then retry.")
     if snapshot.blueBoardError:
@@ -462,7 +504,7 @@ async def configurePedalboard(
         return
     if args.scan_timeout <= 0:
         raise ConfigError("--scan-timeout must be positive")
-    outputFunction(f"Discovering Katana MIDI outputs and scanning up to {args.scan_timeout:g} seconds for a BlueBoard...")
+    outputFunction(f"Discovering Katana MIDI ports and scanning up to {args.scan_timeout:g} seconds for a BlueBoard...")
     snapshot = await collectDiscoverySnapshot(
         args.name,
         args.scan_timeout,
@@ -507,13 +549,36 @@ def evaluateReadiness(
         return ReadinessReport(tuple(checks))
 
     if snapshot.midiError:
-        checks.append(ReadinessCheck("FAIL", "MIDI output", snapshot.midiError))
+        checks.append(ReadinessCheck("FAIL", "MIDI ports", snapshot.midiError))
     else:
         try:
             resolved = resolveOutputName(config.katana.outputName, snapshot.outputNames)
             checks.append(ReadinessCheck("PASS", "MIDI output", resolved))
         except Exception as error:  # noqa: BLE001 - MIDI backends expose platform-specific exception types.
             checks.append(ReadinessCheck("FAIL", "MIDI output", str(error)))
+
+    if config.katana.stateSync.enabled and not snapshot.midiError:
+        try:
+            if config.katana.inputName is None:
+                raise RuntimeError("state synchronization is enabled without an inputName")
+            resolvedInput = resolveInputName(config.katana.inputName, snapshot.inputNames)
+            checks.append(ReadinessCheck("PASS", "MIDI input", resolvedInput))
+        except Exception as error:  # noqa: BLE001 - MIDI backends expose platform-specific exception types.
+            checks.append(ReadinessCheck("FAIL", "MIDI input", str(error)))
+        productionDefinitions = productionDefinitionsFor(config.katana.model, config.katana.firmware)
+        if len(productionDefinitions) != 6:
+            checks.append(ReadinessCheck(
+                "WARN",
+                "State sync",
+                f"{len(productionDefinitions)}/6 exact-firmware effect reads are production-approved; "
+                "runtime will degrade safely",
+            ))
+    elif not config.katana.stateSync.enabled:
+        checks.append(ReadinessCheck(
+            "WARN",
+            "State sync",
+            "disabled legacy profile; effect toggles use predicted presetStates",
+        ))
 
     if snapshot.blueBoardError:
         checks.append(ReadinessCheck("FAIL", "BlueBoard", f"discovery failed: {snapshot.blueBoardError}"))
@@ -600,7 +665,12 @@ def _retryFlags(snapshot: DiscoverySnapshot, requestedOutput: str | None = None)
             hasUsableOutput = False
     else:
         hasUsableOutput = bool(_katanaOutputCandidates(snapshot.outputNames))
-    retryMidi = bool(snapshot.midiError or not snapshot.outputNames or not hasUsableOutput)
+    retryMidi = bool(
+        snapshot.midiError
+        or not snapshot.outputNames
+        or not snapshot.inputNames
+        or not hasUsableOutput
+    )
     retryBlueBoard = bool(snapshot.blueBoardError or not snapshot.devices)
     return retryMidi, retryBlueBoard
 
@@ -633,7 +703,7 @@ async def onboardPedalboard(
     if args.scan_timeout <= 0:
         raise ConfigError("--scan-timeout must be positive")
     outputFunction(
-        f"Discovering Katana MIDI outputs and scanning up to {args.scan_timeout:g} seconds for a BlueBoard concurrently..."
+        f"Discovering Katana MIDI ports and scanning up to {args.scan_timeout:g} seconds for a BlueBoard concurrently..."
     )
     snapshot = await collectDiscoverySnapshot(
         args.name,
@@ -648,7 +718,7 @@ async def onboardPedalboard(
             break
         messages = []
         if retryMidi:
-            messages.append(snapshot.midiError or "no main Katana MIDI output was found")
+            messages.append(snapshot.midiError or "no usable main Katana MIDI input/output pair was found")
         if retryBlueBoard:
             messages.append(snapshot.blueBoardError or "no matching BlueBoard was found")
         outputFunction("Discovery incomplete: " + "; ".join(messages))

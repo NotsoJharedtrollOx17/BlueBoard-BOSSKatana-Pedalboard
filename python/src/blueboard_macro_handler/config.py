@@ -105,6 +105,13 @@ def pedalboardLayout(profile: KatanaModelProfile, layout: str | None = None) -> 
 
 
 @dataclass(frozen=True)
+class StateSyncConfig:
+    enabled: bool = False
+    requestTimeoutMs: int = 750
+    requestRetries: int = 1
+
+
+@dataclass(frozen=True)
 class KatanaConfig:
     outputName: str
     midiChannel: int = 1
@@ -112,6 +119,9 @@ class KatanaConfig:
     firmware: str = "2.00"
     effectControls: dict[str, int] = field(default_factory=lambda: dict(officialEffectControls))
     presetStates: dict[int, dict[str, bool]] = field(default_factory=dict)
+    inputName: str | None = None
+    deviceId: int = 0
+    stateSync: StateSyncConfig = field(default_factory=StateSyncConfig)
 
 
 @dataclass(frozen=True)
@@ -198,6 +208,8 @@ def parseKatana(value: Any) -> KatanaConfig | None:
     midiChannel = raw.get("midiChannel", 1)
     model = raw.get("model", "katana100MkII")
     firmware = raw.get("firmware", "2.00")
+    inputName = raw.get("inputName")
+    deviceId = raw.get("deviceId", 0)
     if not isinstance(outputName, str) or not outputName.strip():
         raise ConfigError("katana.outputName must be a non-empty string")
     if not isinstance(midiChannel, int) or isinstance(midiChannel, bool) or not 1 <= midiChannel <= 16:
@@ -207,6 +219,30 @@ def parseKatana(value: Any) -> KatanaConfig | None:
         raise ConfigError(f"katana.model must be one of: {accepted}")
     if not isinstance(firmware, str) or not firmware.strip():
         raise ConfigError("katana.firmware must be a non-empty string")
+    if inputName is not None and (not isinstance(inputName, str) or not inputName.strip()):
+        raise ConfigError("katana.inputName must be a non-empty string when provided")
+    if not isinstance(deviceId, int) or isinstance(deviceId, bool) or not 0 <= deviceId <= 127:
+        raise ConfigError("katana.deviceId must be from 0 to 127")
+
+    rawStateSync = _requireObject(raw.get("stateSync", {}), "katana.stateSync")
+    stateSyncEnabled = rawStateSync.get("enabled", False)
+    requestTimeoutMs = rawStateSync.get("requestTimeoutMs", 750)
+    requestRetries = rawStateSync.get("requestRetries", 1)
+    if not isinstance(stateSyncEnabled, bool):
+        raise ConfigError("katana.stateSync.enabled must be true or false")
+    if (
+        not isinstance(requestTimeoutMs, int)
+        or isinstance(requestTimeoutMs, bool)
+        or requestTimeoutMs <= 0
+    ):
+        raise ConfigError("katana.stateSync.requestTimeoutMs must be a positive integer")
+    if not isinstance(requestRetries, int) or isinstance(requestRetries, bool) or requestRetries < 0:
+        raise ConfigError("katana.stateSync.requestRetries must be a non-negative integer")
+    if stateSyncEnabled and model != "katana100":
+        raise ConfigError("Katana runtime state synchronization supports only model katana100")
+    if stateSyncEnabled and inputName is None:
+        raise ConfigError("katana.inputName is required when katana.stateSync.enabled is true")
+    stateSync = StateSyncConfig(stateSyncEnabled, requestTimeoutMs, requestRetries)
 
     rawControls = _requireObject(raw.get("effectControls", effectControlsByModel[model]), "katana.effectControls")
     effectControls: dict[str, int] = {}
@@ -237,7 +273,17 @@ def parseKatana(value: Any) -> KatanaConfig | None:
                 raise ConfigError(f"katana.presetStates.{rawPreset}.{effect} must be true or false")
             state[effect] = enabled
         presetStates[preset] = state
-    return KatanaConfig(outputName.strip(), midiChannel, model, firmware.strip(), effectControls, presetStates)
+    return KatanaConfig(
+        outputName.strip(),
+        midiChannel,
+        model,
+        firmware.strip(),
+        effectControls,
+        presetStates,
+        None if inputName is None else inputName.strip(),
+        deviceId,
+        stateSync,
+    )
 
 
 def loadConfig(path: Path) -> AppConfig:
@@ -323,6 +369,14 @@ def configAsDict(config: AppConfig) -> dict[str, Any]:
             "effectControls": dict(config.katana.effectControls),
             "presetStates": {str(preset): dict(state) for preset, state in config.katana.presetStates.items()},
         }
+        if config.katana.inputName is not None:
+            result["katana"]["inputName"] = config.katana.inputName
+            result["katana"]["deviceId"] = config.katana.deviceId
+            result["katana"]["stateSync"] = {
+                "enabled": config.katana.stateSync.enabled,
+                "requestTimeoutMs": config.katana.stateSync.requestTimeoutMs,
+                "requestRetries": config.katana.stateSync.requestRetries,
+            }
     return result
 
 
@@ -335,6 +389,7 @@ def katanaPedalboardConfig(
     layout: str | None = None,
     midiChannel: int = 1,
     firmware: str | None = None,
+    inputName: str | None = None,
 ) -> AppConfig:
     """Build a model-correct A-D starter profile for a detected Katana output."""
     if not isinstance(outputName, str) or not outputName.strip():
@@ -350,6 +405,10 @@ def katanaPedalboardConfig(
     selectedFirmware = firmware or profile.defaultFirmware
     if not isinstance(selectedFirmware, str) or not selectedFirmware.strip():
         raise ConfigError("firmware must be a non-empty string")
+    if inputName is not None and (not isinstance(inputName, str) or not inputName.strip()):
+        raise ConfigError("Katana input name must be a non-empty string when provided")
+    stateSyncEnabled = profile.model == "katana100"
+    selectedInputName = (inputName or outputName).strip() if stateSyncEnabled else None
     katana = KatanaConfig(
         outputName=outputName.strip(),
         midiChannel=midiChannel,
@@ -360,6 +419,9 @@ def katanaPedalboardConfig(
             selectedLayout.firstPreset: {"booster": False, "delay": False},
             selectedLayout.secondPreset: {"booster": False, "delay": False},
         },
+        inputName=selectedInputName,
+        deviceId=0,
+        stateSync=StateSyncConfig(enabled=stateSyncEnabled),
     )
     bindings = (
         Binding(

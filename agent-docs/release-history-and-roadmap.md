@@ -128,6 +128,27 @@ only after a second confirmation. This release still does not feed queried value
 into runtime actions, promote community candidates to production evidence, or
 claim hardware success before the target-amplifier acceptance record is complete.
 
+## 0.7.0 runtime state-bootstrap prerelease
+
+Version 0.7.0 reuses the v0.6.0 request matcher inside the active BlueBoard run.
+A single Katana worker owns input-first duplex port opening and serializes RQ1,
+Program Change, and Control Change operations without blocking BLE notification
+processing. Startup and detected-recovery reads publish an atomic snapshot of the
+six individual Mk I effect flags; grouped controls are derived without collapsing
+both-on or unknown member states.
+
+New Mk I onboarding profiles contain independent input/output names, device ID,
+and bounded state-sync settings. Legacy profiles still load with synchronization
+disabled and an explicit prediction-mode warning. Program Change and Control Change
+continue to actuate through the physically proven standard-MIDI plane; their local
+updates are labeled predicted/stale until v0.8.0 adds post-action readback.
+
+The runtime will consume only definitions marked production-readable for the exact
+configured firmware. Existing ignored captures demonstrate working replies but do
+not record the BOSS physical firmware check or complete per-effect reproduction
+matrix. Consequently registry promotion and the v0.7.0 hardware acceptance decision
+remain pending; source implementation does not bypass that evidence gate.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |
@@ -137,17 +158,17 @@ claim hardware success before the target-amplifier acceptance record is complete
 | Momentary BlueBoard LEDs | Ported, opt-in | Prior hardware evidence; current regression tests |
 | Katana PC/CC byte construction | Implemented | Pure unit tests and official receive map |
 | Mk I SysEx framing/parser/arithmetic | Implemented, hardware-independent | Exact community vectors and strict negative unit tests |
-| Mk I effect-state address registry | Probe candidates only | Community/legacy provenance; unknown firmware; no production read/write access |
+| Mk I effect-state address registry | Probe candidates; production gate pending | Working local captures exist, but exact firmware and complete reproduction record are missing |
 | MIDI output resolution/transport | Implemented | Fake Mido transport tests |
 | MIDI input resolution/duplex probe transport | Implemented, hardware pending | Input-first fake-Mido tests; target capture pending |
 | Read-only Mk I SysEx CLI | Implemented, hardware pending | Bounded request/reply tests; target checksum-valid replies pending |
-| Preset/effect controller state | Implemented, predicted | A/C/D physically validated; external changes can make state stale |
+| Preset/effect controller state | Runtime bootstrap implemented; hardware gate pending | Six-value snapshot and grouped derivation are source-tested; post-action state remains predicted |
 | Original KATANA-100 USB-MIDI control | A/C/D validated on Windows | PC0, grouped CC16, and grouped CC17 physically observed 2026-08-23 |
 | KATANA-100 MkII USB-MIDI control | Source-supported, hardware unvalidated | Official profile and unit tests only; it is not the user's amplifier |
 | Interactive effect probe | Model-aware in source | Profile-derived labels/CCs; physical MkI probe record pending |
 | Unified onboarding, guided configuration, and doctor | Implemented | Snapshot reuse is automated; Windows hardware smoke remains pending |
-| Katana reconnect | Retry-on-next-command implemented | Simulated failure/reopen test |
-| Bidirectional state synchronization | Not implemented | Diagnostic input/query exists; runtime snapshots/reconnect/post-action verification remain |
+| Katana reconnect | Duplex resync-on-next-operation implemented | Simulated failure, invalidation, reopen, and resync tests |
+| Bidirectional state synchronization | Startup/recovery source path implemented | Exact-firmware registry promotion and target hardware acceptance pending; post-action verification is v0.8.0 |
 | Deep parameter editing | Not implemented | No deep-parameter definitions or runtime SysEx write path |
 | Persistent Katana-state LEDs | Not implemented | Requires authoritative state source |
 | C++17 port | Deferred | Python fixtures should become specification |

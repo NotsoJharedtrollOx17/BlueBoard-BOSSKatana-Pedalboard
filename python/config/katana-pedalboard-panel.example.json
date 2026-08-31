@@ -1,10 +1,17 @@
 {
   "device": {"name": "BlueBoard", "scanTimeout": 8, "pair": false},
   "katana": {
+    "inputName": "KATANA 1",
     "outputName": "KATANA 1",
     "midiChannel": 1,
     "model": "katana100",
     "firmware": "unknown",
+    "deviceId": 0,
+    "stateSync": {
+      "enabled": true,
+      "requestTimeoutMs": 750,
+      "requestRetries": 1
+    },
     "effectControls": {"booster": 16, "delay": 17, "reverb": 18, "effectLoop": 19},
     "presetStates": {
       "1": {"booster": false, "delay": false},

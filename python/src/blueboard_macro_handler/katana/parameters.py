@@ -25,6 +25,7 @@ __all__ = [
     "WriteAccess",
     "calculateRolandChecksum",
     "parameterDefinitions",
+    "productionDefinitionsFor",
 ]
 
 _EVIDENCE_VALUES = {
@@ -189,3 +190,13 @@ parameterDefinitions: dict[str, ParameterDefinition] = {
         "Single-source Mk I read candidate; requires independent target-firmware reproduction before production use.",
     ),
 }
+
+
+def productionDefinitionsFor(model: str, firmware: str) -> tuple[ParameterDefinition, ...]:
+    return tuple(
+        definition
+        for definition in parameterDefinitions.values()
+        if definition.model == model
+        and definition.firmwareRange == firmware
+        and definition.mayReadInProduction
+    )

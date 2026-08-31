@@ -23,6 +23,9 @@ class RecordingTransport:
         self.listCalls += 1
         return self.outputNames
 
+    def listInputNames(self):
+        return self.outputNames
+
     def open(self, name):
         self.opened.append(name)
 
@@ -66,6 +69,7 @@ class OnboardingTests(unittest.TestCase):
             )
         )
         self.assertEqual(snapshot.outputNames[0], "KATANA 1")
+        self.assertEqual(snapshot.inputNames[0], "KATANA 1")
         self.assertEqual(snapshot.devices[0].address, "AA:BB")
         self.assertEqual(transport.opened, [])
         self.assertEqual(transport.sent, [])
@@ -109,6 +113,8 @@ class OnboardingTests(unittest.TestCase):
         self.assertEqual(transport.opened, [])
         self.assertEqual(transport.sent, [])
         self.assertEqual(config["katana"]["outputName"], "KATANA 1")
+        self.assertEqual(config["katana"]["inputName"], "KATANA 1")
+        self.assertTrue(config["katana"]["stateSync"]["enabled"])
         self.assertEqual(config["bindings"][0]["action"]["preset"], 4)
         self.assertEqual(state["lastAddress"], "AA:BB")
         self.assertTrue(any("reusing the discovery snapshot" in line.casefold() for line in output))
