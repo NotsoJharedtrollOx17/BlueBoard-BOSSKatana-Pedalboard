@@ -18,7 +18,14 @@ from .session import (
     SysExTrafficRecord,
     formatMidiBytes,
 )
-from .transport import MidiTransport, MidoMidiTransport, ReceivedMidiMessage, resolveInputName, resolveOutputName
+from .transport import (
+    MidiTransport,
+    MidoMidiTransport,
+    ReceivedMidiMessage,
+    deriveStablePortSelector,
+    resolveInputName,
+    resolveOutputName,
+)
 
 __all__ = [
     "AmpStateSnapshot",
@@ -41,6 +48,7 @@ __all__ = [
     "createSysExRead",
     "decodeBase128",
     "deriveGroupState",
+    "deriveStablePortSelector",
     "encodeBase128",
     "formatMidiBytes",
     "incrementAddress",

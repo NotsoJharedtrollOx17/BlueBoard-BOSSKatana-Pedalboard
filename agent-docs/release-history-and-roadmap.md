@@ -150,6 +150,35 @@ not record the BOSS physical firmware check or complete per-effect reproduction
 matrix. Consequently registry promotion and the v0.7.0 hardware acceptance decision
 remain pending; source implementation does not bypass that evidence gate.
 
+## 0.8.0 Linux BlueBoard–Katana integration candidate
+
+Version 0.8.0 ports the proven Windows workflow to Linux Mint 22.2 x86-64 while
+preserving Windows as a regression baseline. The `blueboard_macro_handler`
+namespace remains stable, but the product boundary is now explicitly macro-free:
+configuration accepts Katana actions, harmless log actions, and unmapped `null`
+bindings only. Keyboard injection, UDP, process launch, `evdev`, and `uinput`
+setup are removed.
+
+Linux BLE remains Bleak-first over BlueZ/D-Bus. A fail-closed `gatttool`
+compatibility path dynamically validates a single BLE-MIDI characteristic and
+its single `0x2902` CCCD. If discovery fails, only a device advertised exactly as
+`iRig BlueBoard` ignoring case may use the named tested `0x0022`/`0x0023`
+profile. Notification parsing and LED writes use the active immutable profile;
+the runtime never pairs, trusts, or edits persistent BlueZ state.
+
+ALSA input and output selection remains independent. Linux onboarding removes
+unstable client coordinates or redundant prefixes only when the shorter selector
+continues to resolve uniquely to the original port. New Bash onboarding,
+diagnostic, and session-recording wrappers provide the Windows workflow on Linux.
+Doctor remains read-only and adds operating-system, BlueZ, D-Bus, adapter, ALSA,
+backend, selector, firmware, approved-definition, and BlueBoard reporting.
+
+The package reports 0.8.0 but retains its alpha classifier. Automated source,
+wrapper, Windows/Linux CI, and wheel/sdist smoke gates are necessary but not
+sufficient. Release completion, merge to `main`, and tagging remain prohibited
+until `v0.8.0-linux-hardware-acceptance.md` contains sanitized evidence for the
+full pedal, reconnect, shutdown, 60-minute, and post-reboot selector checklist.
+
 ## Capability status
 
 | Capability | Status | Evidence boundary |

@@ -32,12 +32,7 @@ class KatanaModelProfile:
 @dataclass(frozen=True)
 class ActionSpec:
     type: str
-    keys: tuple[str, ...] = ()
     message: str = ""
-    host: str = "127.0.0.1"
-    port: int = 0
-    program: str = ""
-    args: tuple[str, ...] = ()
     command: str = ""
     preset: int | None = None
     effect: str = ""
@@ -142,10 +137,8 @@ class AppConfig:
     katana: KatanaConfig | None = None
 
 
-legacyActions = {
-    "ctrlShiftR": ActionSpec("keyboard", keys=("CTRL", "SHIFT", "R")),
-    "altTab": ActionSpec("keyboard", keys=("ALT", "TAB")),
-}
+removedLegacyActions = frozenset({"ctrlShiftR", "altTab"})
+removedActionTypes = frozenset({"keyboard", "udp", "launch"})
 
 
 def _requireObject(value: Any, context: str) -> dict[str, Any]:
@@ -158,26 +151,21 @@ def parseAction(value: Any, context: str) -> ActionSpec | None:
     if value is None:
         return None
     if isinstance(value, str):
-        return legacyActions.get(value, ActionSpec("log", message=value))
+        if value in removedLegacyActions:
+            raise ConfigError(
+                f"{context} uses removed macro action {value!r}; "
+                "v0.8.0 supports only Katana, log, or null actions"
+            )
+        return ActionSpec("log", message=value)
     raw = _requireObject(value, context)
     actionType = raw.get("type")
-    if actionType not in {"keyboard", "log", "udp", "launch", "katana"}:
-        raise ConfigError(f"{context}.type must be keyboard, log, udp, launch, or katana")
-    if actionType == "keyboard":
-        keys = raw.get("keys")
-        if not isinstance(keys, list) or not keys or not all(isinstance(key, str) for key in keys):
-            raise ConfigError(f"{context}.keys must be a non-empty string array")
-        return ActionSpec(actionType, keys=tuple(key.upper() for key in keys))
-    if actionType == "udp":
-        host, port = raw.get("host", "127.0.0.1"), raw.get("port")
-        if not isinstance(host, str) or not isinstance(port, int) or not 1 <= port <= 65535:
-            raise ConfigError(f"{context} requires a host and port from 1 to 65535")
-        return ActionSpec(actionType, message=str(raw.get("message", "")), host=host, port=port)
-    if actionType == "launch":
-        program, args = raw.get("program"), raw.get("args", [])
-        if not isinstance(program, str) or not program or not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
-            raise ConfigError(f"{context} requires program and an optional string args array")
-        return ActionSpec(actionType, program=program, args=tuple(args))
+    if actionType in removedActionTypes:
+        raise ConfigError(
+            f"{context}.type {actionType!r} was removed from the Katana pedalboard; "
+            "v0.8.0 supports only Katana, log, or null actions"
+        )
+    if actionType not in {"log", "katana"}:
+        raise ConfigError(f"{context}.type must be log or katana")
     if actionType == "katana":
         command = raw.get("command")
         if command not in supportedKatanaCommands:
@@ -315,6 +303,8 @@ def loadConfig(path: Path) -> AppConfig:
     name, timeout, pair = device.get("name", "BlueBoard"), device.get("scanTimeout", 20.0), device.get("pair", False)
     if not isinstance(name, str) or not isinstance(timeout, (int, float)) or timeout <= 0 or not isinstance(pair, bool):
         raise ConfigError("device name, scanTimeout, or pair is invalid")
+    if pair:
+        raise ConfigError("device.pair=true is unsupported; v0.8.0 never changes persistent BlueZ pairing state")
     katana = parseKatana(root.get("katana"))
     katanaActions = [binding.action for binding in bindings if binding.action and binding.action.type == "katana"]
     if katanaActions and katana is None:
@@ -328,12 +318,6 @@ def loadConfig(path: Path) -> AppConfig:
 
 def configAsDict(config: AppConfig) -> dict[str, Any]:
     def actionAsDict(action: ActionSpec) -> dict[str, Any]:
-        if action.type == "keyboard":
-            return {"type": action.type, "keys": list(action.keys)}
-        if action.type == "udp":
-            return {"type": action.type, "host": action.host, "port": action.port, "message": action.message}
-        if action.type == "launch":
-            return {"type": action.type, "program": action.program, "args": list(action.args)}
         if action.type == "katana":
             value: dict[str, Any] = {"type": action.type, "command": action.command}
             if action.preset is not None:

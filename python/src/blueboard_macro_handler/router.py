@@ -20,12 +20,6 @@ class LedFeedback(Protocol):
 def actionDescription(action) -> str:
     if action is None:
         return "unmapped"
-    if action.type == "keyboard":
-        return "+".join(action.keys)
-    if action.type == "udp":
-        return f"UDP {action.host}:{action.port}"
-    if action.type == "launch":
-        return " ".join((action.program, *action.args))
     if action.type == "log":
         return f"log:{action.message}" if action.message else "log"
     if action.type == "katana":
@@ -78,7 +72,7 @@ class Router:
         else:
             actionText = "unmapped"
         logger.info(
-            "button=%s edge=%s source=ble-midi channel=%d cc=%d value=%d macro=%s",
+            "button=%s edge=%s source=ble-midi channel=%d cc=%d value=%d action=%s",
             button or "?",
             edge,
             event.channel + 1,
@@ -93,7 +87,7 @@ class Router:
                 continue
             lastAt = self.lastActionAt.get(binding, float("-inf"))
             if (now - lastAt) * 1000 < binding.cooldownMs:
-                logger.warning("button=%s macro=%s suppressed=cooldown", button or "?", actionDescription(binding.action))
+                logger.warning("button=%s action=%s suppressed=cooldown", button or "?", actionDescription(binding.action))
                 continue
             self.lastActionAt[binding] = now
             try:
@@ -101,14 +95,10 @@ class Router:
                     self.metrics.actions += 1
             except Exception:
                 self.metrics.actionFailures += 1
-                logger.exception("button=%s macro=%s action=failed", button or "?", actionDescription(binding.action))
+                logger.exception("button=%s action=%s result=failed", button or "?", actionDescription(binding.action))
 
     def releaseAll(self) -> None:
         active = [key for key, pressed in self.buttonState.items() if pressed]
         self.buttonState.clear()
-        try:
-            self.actions.releaseAll()
-        except Exception:
-            logger.exception("failed to release active keyboard state")
         if active:
             logger.warning("cleared active buttons after disconnect: %s", active)

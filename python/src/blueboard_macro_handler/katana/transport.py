@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import logging
+import re
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from time import monotonic
 from typing import Any, Protocol
 
 from .commands import MidiCommand
+
+logger = logging.getLogger("blueboard.katana.transport")
+alsaPortCoordinatesPattern = re.compile(r"\s+\d+:\d+$")
 
 
 @dataclass(frozen=True)
@@ -55,6 +61,39 @@ def resolveOutputName(requestedName: str, availableNames: tuple[str, ...]) -> st
     return _resolvePortName("output", requestedName, availableNames)
 
 
+def deriveStablePortSelector(selectedName: str, availableNames: tuple[str, ...]) -> str:
+    """Return the shortest conservative selector that still identifies selectedName."""
+    selected = _resolvePortName("port", selectedName, availableNames)
+    candidates = [selected]
+    withoutCoordinates = alsaPortCoordinatesPattern.sub("", selected).strip()
+    if withoutCoordinates and withoutCoordinates != selected:
+        candidates.append(withoutCoordinates)
+    for candidate in tuple(candidates):
+        if ":" not in candidate:
+            continue
+        withoutClient = candidate.split(":", 1)[1].strip()
+        if withoutClient:
+            candidates.append(withoutClient)
+    safe: list[str] = []
+    for candidate in dict.fromkeys(candidates):
+        try:
+            if _resolvePortName("port", candidate, availableNames) == selected:
+                safe.append(candidate)
+        except (RuntimeError, ValueError):
+            continue
+    return min(safe, key=lambda candidate: (len(candidate), candidates.index(candidate))) if safe else selected
+
+
+def _portOpenError(kind: str, resolvedName: str, error: Exception) -> RuntimeError:
+    guidance = ""
+    if sys.platform.startswith("linux"):
+        guidance = (
+            "; close Tone Studio, DAWs, MIDI monitors, or stale pedalboard processes, "
+            "then verify ALSA sequencer permissions"
+        )
+    return RuntimeError(f"could not open Katana MIDI {kind} {resolvedName!r}: {error}{guidance}")
+
+
 class MidoMidiTransport:
     def __init__(self, midoModule: Any | None = None) -> None:
         self.midoModule = midoModule
@@ -95,8 +134,12 @@ class MidoMidiTransport:
                 data = tuple(message.bytes())
             callback(ReceivedMidiMessage(messageType, data))
 
-        self.inputPort = self.getMido().open_input(resolvedName, callback=receive)
+        try:
+            self.inputPort = self.getMido().open_input(resolvedName, callback=receive)
+        except Exception as error:
+            raise _portOpenError("input", resolvedName, error) from error
         self.inputName = resolvedName
+        logger.info("katana MIDI input selector=%r resolved=%r", inputName, resolvedName)
 
     def open(self, outputName: str) -> None:
         if self.outputPort is not None:
@@ -104,8 +147,12 @@ class MidoMidiTransport:
             self.outputPort = None
             self.outputName = None
         resolvedName = resolveOutputName(outputName, self.listOutputNames())
-        self.outputPort = self.getMido().open_output(resolvedName)
+        try:
+            self.outputPort = self.getMido().open_output(resolvedName)
+        except Exception as error:
+            raise _portOpenError("output", resolvedName, error) from error
         self.outputName = resolvedName
+        logger.info("katana MIDI output selector=%r resolved=%r", outputName, resolvedName)
 
     def send(self, command: MidiCommand) -> None:
         if self.outputPort is None:

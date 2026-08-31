@@ -1,10 +1,12 @@
 import json
+import logging
 import tempfile
 import unittest
 from pathlib import Path
 
 from blueboard_macro_handler.ble_midi import encodeBleMidi
 from blueboard_macro_handler.cli import buildParser, loadReplayPackets, logWelcome, main
+from blueboard_macro_handler.logging_utils import configureLogging
 
 
 class PackageCliTests(unittest.TestCase):
@@ -31,6 +33,12 @@ class PackageCliTests(unittest.TestCase):
         args = buildParser().parse_args(["run", "--led-feedback", "--reset-leds"])
         self.assertTrue(args.led_feedback)
         self.assertTrue(args.reset_leds)
+
+    def testDebugLoggingSuppressesUnrelatedBleakDeviceDetails(self) -> None:
+        configureLogging(debug=True)
+        self.assertEqual(logging.getLogger("blueboard.client").getEffectiveLevel(), logging.DEBUG)
+        self.assertEqual(logging.getLogger("bleak").getEffectiveLevel(), logging.WARNING)
+        self.assertEqual(logging.getLogger("dbus_fast").getEffectiveLevel(), logging.WARNING)
 
     def testWelcomeLogIdentifiesAuthorAndProject(self) -> None:
         with self.assertLogs("blueboard.cli", level="INFO") as captured:

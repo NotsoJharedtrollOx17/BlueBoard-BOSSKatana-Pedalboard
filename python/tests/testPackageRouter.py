@@ -12,7 +12,6 @@ class FakeActions:
         if self.fail: raise RuntimeError("test failure")
         self.values.append(action)
         return True
-    def releaseAll(self): pass
 
 
 class FakeLedFeedback:
@@ -27,7 +26,7 @@ class PackageRouterTests(unittest.TestCase):
 
     def testRunsOnlyConfiguredEdgeAndSuppressesDuplicate(self) -> None:
         actions = FakeActions()
-        router = Router(AppConfig((Binding(20, "press", ActionSpec("keyboard", keys=("R",))),)), actions)
+        router = Router(AppConfig((Binding(20, "press", ActionSpec("log", message="R")),)), actions)
         router.handleEvent(self.event(127)); router.handleEvent(self.event(127)); router.handleEvent(self.event(0))
         self.assertEqual(len(actions.values), 1)
 
@@ -40,26 +39,28 @@ class PackageRouterTests(unittest.TestCase):
 
     def testBackendFailureIsCountedAndDoesNotEscape(self) -> None:
         metrics = RunMetrics()
-        router = Router(AppConfig((Binding(20, "press", ActionSpec("keyboard", keys=("R",))),)), FakeActions(fail=True), metrics)
+        action = ActionSpec("katana", command="selectPreset", preset=0)
+        router = Router(AppConfig((Binding(20, "press", action),)), FakeActions(fail=True), metrics)
         router.handleEvent(self.event(127))
         self.assertEqual(metrics.actionFailures, 1)
 
-    def testLogNamesButtonAndConfiguredMacro(self) -> None:
+    def testLogNamesButtonAndConfiguredAction(self) -> None:
         actions = FakeActions()
-        router = Router(AppConfig((Binding(20, "press", ActionSpec("keyboard", keys=("CTRL", "R"))),)), actions)
+        action = ActionSpec("katana", command="selectPreset", preset=0)
+        router = Router(AppConfig((Binding(20, "press", action),)), actions)
         with self.assertLogs("blueboard.router", level=logging.INFO) as captured:
             router.handleEvent(self.event(127))
         self.assertIn("button=A", captured.output[0])
         self.assertIn("edge=press", captured.output[0])
         self.assertIn("source=ble-midi", captured.output[0])
-        self.assertIn("macro=CTRL+R", captured.output[0])
+        self.assertIn("action=katana:selectPreset:0", captured.output[0])
 
     def testUnmappedButtonIsExplicitlyReported(self) -> None:
         router = Router(AppConfig((Binding(22, "press", None),)), FakeActions())
         with self.assertLogs("blueboard.router", level=logging.INFO) as captured:
             router.handleEvent(self.event(127, cc=22))
         self.assertIn("button=C", captured.output[0])
-        self.assertIn("macro=unmapped", captured.output[0])
+        self.assertIn("action=unmapped", captured.output[0])
 
     def testEveryAcceptedButtonEdgeEmitsOneFeedbackRequest(self) -> None:
         ledFeedback = FakeLedFeedback()
@@ -69,9 +70,10 @@ class PackageRouterTests(unittest.TestCase):
         router.handleEvent(self.event(0))
         self.assertEqual(ledFeedback.values, [(20, True), (20, False)])
 
-    def testFeedbackIsIndependentFromMacroFailure(self) -> None:
+    def testFeedbackIsIndependentFromActionFailure(self) -> None:
         ledFeedback = FakeLedFeedback()
-        config = AppConfig((Binding(20, "press", ActionSpec("keyboard", keys=("R",))),))
+        action = ActionSpec("katana", command="selectPreset", preset=0)
+        config = AppConfig((Binding(20, "press", action),))
         router = Router(config, FakeActions(fail=True), ledFeedback=ledFeedback)
         router.handleEvent(self.event(127))
         self.assertEqual(ledFeedback.values, [(20, True)])

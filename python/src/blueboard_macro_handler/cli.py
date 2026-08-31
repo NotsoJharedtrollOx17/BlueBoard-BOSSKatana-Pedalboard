@@ -55,11 +55,11 @@ def logWelcome(command: str) -> None:
         "probe-effects": "interactive documented-effect switch probe (blueboard-katana probe-effects)",
         "configure": "read-only hardware discovery and local profile setup (blueboard-katana configure)",
         "doctor": "read-only installation and hardware readiness checks (blueboard-katana doctor)",
-        "onboard": "unified read-only Windows hardware onboarding (blueboard-katana onboard)",
+        "onboard": "unified read-only hardware onboarding (blueboard-katana onboard)",
     }.get(command, command)
     logger.info("================================================================================")
     logger.info("  BlueBoard + BOSS Katana Pedalboard v%s", __version__)
-    logger.info("  Windows-first BLE-MIDI to USB-MIDI bridge; Linux path is experimental")
+    logger.info("  Windows and Linux BLE-MIDI to USB-MIDI bridge; Mint 22.2 is the supported Linux target")
     logger.info("--------------------------------------------------------------------------------")
     logger.info("  Developer : %s", authorName)
     logger.info("  License   : MIT License (Copyright 2026 %s)", authorName)
@@ -120,7 +120,7 @@ def buildParser() -> argparse.ArgumentParser:
     scan.add_argument("--name")
     scan.add_argument("--scan-timeout", type=float)
 
-    run = commands.add_parser("run", help="connect, decode, and route macros")
+    run = commands.add_parser("run", help="connect the BlueBoard and route Katana actions")
     addRuntimeOptions(run)
     run.add_argument("--name")
     run.add_argument("--address")
@@ -130,12 +130,11 @@ def buildParser() -> argparse.ArgumentParser:
         type=float,
         help="stop a run session cleanly after this positive duration; actions remain opt-in",
     )
-    run.add_argument("--pair", action=argparse.BooleanOptionalAction, default=None)
     mode = run.add_mutually_exclusive_group()
     mode.add_argument(
         "--execute-actions",
         action="store_true",
-        help="enable Katana, keyboard, UDP, and launch actions",
+        help="enable configured Katana actions",
     )
     mode.add_argument("--dry-run", action="store_true", help="route and log without side effects (default)")
     run.add_argument(
@@ -583,7 +582,7 @@ async def asyncCommand(args: argparse.Namespace) -> RunMetrics | None:
                 )
                 if config.katana.model == "katana100" and not config.katana.stateSync.enabled:
                     logger.warning(
-                        "Legacy Mk I profile: add inputName and stateSync settings or rerun onboarding to enable v0.7.0 state bootstrap"
+                        "Legacy Mk I profile: add inputName and stateSync settings or rerun onboarding to enable state bootstrap"
                     )
 
     metrics = RunMetrics()
@@ -616,7 +615,7 @@ async def asyncCommand(args: argparse.Namespace) -> RunMetrics | None:
             router.releaseAll,
             nameSubstring=args.name or config.name,
             address=address,
-            pair=config.pair if args.pair is None else args.pair,
+            pair=False,
             scanTimeout=args.scan_timeout or config.scanTimeout,
             metrics=metrics,
             statePath=args.state_file,

@@ -19,8 +19,9 @@ from .config import (
     pedalboardLayout,
     writeConfig,
 )
-from .katana import MidoMidiTransport, resolveInputName, resolveOutputName
+from .katana import MidoMidiTransport, deriveStablePortSelector, resolveInputName, resolveOutputName
 from .katana.parameters import productionDefinitionsFor
+from .linuxDiagnostics import LinuxEnvironmentCheck, inspectLinuxEnvironment
 from .router import actionDescription, buttonNames
 from .state import loadLastAddress, saveLastAddress
 
@@ -381,7 +382,7 @@ def _confirmReplacement(
 
 
 def _buildDraft(args, snapshot, interactive, inputFunction, outputFunction):
-    outputName = _selectOutput(args, snapshot.outputNames, interactive, inputFunction, outputFunction)
+    selectedOutputName = _selectOutput(args, snapshot.outputNames, interactive, inputFunction, outputFunction)
     model = args.model
     if model is None:
         if not interactive:
@@ -393,10 +394,23 @@ def _buildDraft(args, snapshot, interactive, inputFunction, outputFunction):
             outputFunction,
         )
     profile = katanaProfile(model)
-    inputName = None
+    selectedInputName = None
     if profile.model == "katana100":
-        requestedInput = args.input or (outputName if outputName in snapshot.inputNames else None)
-        inputName = selectKatanaInput(requestedInput, snapshot.inputNames)
+        requestedInput = args.input or (
+            selectedOutputName if selectedOutputName in snapshot.inputNames else None
+        )
+        selectedInputName = selectKatanaInput(requestedInput, snapshot.inputNames)
+    outputName = selectedOutputName
+    inputName = selectedInputName
+    if sys.platform.startswith("linux"):
+        outputName = deriveStablePortSelector(selectedOutputName, snapshot.outputNames)
+        if selectedInputName is not None:
+            inputName = deriveStablePortSelector(selectedInputName, snapshot.inputNames)
+        outputFunction(f"MIDI output current: {selectedOutputName}")
+        outputFunction(f"MIDI output saved  : {outputName}")
+        if selectedInputName is not None:
+            outputFunction(f"MIDI input current : {selectedInputName}")
+            outputFunction(f"MIDI input saved   : {inputName}")
     layoutName = args.layout
     if layoutName is None and interactive:
         choices = tuple((name, layout.displayName) for name, layout in profile.layouts.items())
@@ -547,13 +561,22 @@ def evaluateReadiness(
     if config.katana is None:
         checks.append(ReadinessCheck("FAIL", "Katana profile", "configuration does not contain a Katana profile"))
         return ReadinessReport(tuple(checks))
+    checks.append(ReadinessCheck(
+        "PASS",
+        "Katana profile",
+        f"model={config.katana.model}; firmware={config.katana.firmware}",
+    ))
 
     if snapshot.midiError:
         checks.append(ReadinessCheck("FAIL", "MIDI ports", snapshot.midiError))
     else:
         try:
             resolved = resolveOutputName(config.katana.outputName, snapshot.outputNames)
-            checks.append(ReadinessCheck("PASS", "MIDI output", resolved))
+            checks.append(ReadinessCheck(
+                "PASS",
+                "MIDI output",
+                f"saved selector={config.katana.outputName!r}; resolved={resolved!r}",
+            ))
         except Exception as error:  # noqa: BLE001 - MIDI backends expose platform-specific exception types.
             checks.append(ReadinessCheck("FAIL", "MIDI output", str(error)))
 
@@ -562,17 +585,21 @@ def evaluateReadiness(
             if config.katana.inputName is None:
                 raise RuntimeError("state synchronization is enabled without an inputName")
             resolvedInput = resolveInputName(config.katana.inputName, snapshot.inputNames)
-            checks.append(ReadinessCheck("PASS", "MIDI input", resolvedInput))
+            checks.append(ReadinessCheck(
+                "PASS",
+                "MIDI input",
+                f"saved selector={config.katana.inputName!r}; resolved={resolvedInput!r}",
+            ))
         except Exception as error:  # noqa: BLE001 - MIDI backends expose platform-specific exception types.
             checks.append(ReadinessCheck("FAIL", "MIDI input", str(error)))
         productionDefinitions = productionDefinitionsFor(config.katana.model, config.katana.firmware)
-        if len(productionDefinitions) != 6:
-            checks.append(ReadinessCheck(
-                "WARN",
-                "State sync",
-                f"{len(productionDefinitions)}/6 exact-firmware effect reads are production-approved; "
-                "runtime will degrade safely",
-            ))
+        definitionNames = ", ".join(definition.name for definition in productionDefinitions) or "none"
+        checks.append(ReadinessCheck(
+            "PASS" if len(productionDefinitions) == 6 else "WARN",
+            "State sync definitions",
+            f"{len(productionDefinitions)}/6 exact-firmware production-approved reads: {definitionNames}"
+            + ("" if len(productionDefinitions) == 6 else "; runtime will degrade safely"),
+        ))
     elif not config.katana.stateSync.enabled:
         checks.append(ReadinessCheck(
             "WARN",
@@ -604,7 +631,7 @@ def evaluateReadiness(
         checks.append(ReadinessCheck(
             "PASS",
             "BlueBoard",
-            f"{selected.name or '<unnamed>'} ({selected.address}, RSSI={selected.rssi})",
+            f"{selected.name or '<unnamed>'} (RSSI={selected.rssi}; address omitted)",
         ))
     return ReadinessReport(tuple(checks))
 
@@ -625,13 +652,23 @@ async def doctorPedalboard(
     *,
     midiTransportFactory: MidiTransportFactory = MidoMidiTransport,
     discoverFunction: BlueBoardDiscovery = discoverBlueBoards,
+    environmentCheckFunction: Callable[[], tuple[LinuxEnvironmentCheck, ...]] | None = None,
 ) -> None:
+    environmentChecks: tuple[ReadinessCheck, ...] = ()
+    if sys.platform.startswith("linux"):
+        try:
+            rawChecks = await asyncio.to_thread(environmentCheckFunction or inspectLinuxEnvironment)
+            environmentChecks = tuple(
+                ReadinessCheck(check.status, check.area, check.message) for check in rawChecks
+            )
+        except Exception as error:  # noqa: BLE001 - diagnostics must report rather than crash.
+            environmentChecks = (ReadinessCheck("FAIL", "Linux environment", str(error)),)
     try:
         config = loadConfig(args.config)
     except ConfigError as error:
         version = sys.version_info[:2]
         status = "PASS" if (3, 10) <= version < (3, 13) else "FAIL"
-        report = ReadinessReport((
+        report = ReadinessReport((*environmentChecks,
             ReadinessCheck(status, "Python", sys.version.split()[0]),
             ReadinessCheck("FAIL", "Configuration", str(error)),
         ))
@@ -650,7 +687,8 @@ async def doctorPedalboard(
             midiTransportFactory=midiTransportFactory,
             discoverFunction=discoverFunction,
         )
-    report = evaluateReadiness(config, snapshot, configLabel=str(args.config), statePath=args.state_file)
+    readiness = evaluateReadiness(config, snapshot, configLabel=str(args.config), statePath=args.state_file)
+    report = ReadinessReport((*environmentChecks, *readiness.checks))
     printReadinessReport(report, outputFunction)
     if report.failures:
         raise RuntimeError(f"doctor found {len(report.failures)} readiness problem(s)")
@@ -683,6 +721,7 @@ async def onboardPedalboard(
     interactive: bool | None = None,
     midiTransportFactory: MidiTransportFactory = MidoMidiTransport,
     discoverFunction: BlueBoardDiscovery = discoverBlueBoards,
+    environmentCheckFunction: Callable[[], tuple[LinuxEnvironmentCheck, ...]] | None = None,
 ) -> None:
     if args.verify_existing:
         if args.force:
@@ -695,6 +734,7 @@ async def onboardPedalboard(
             outputFunction,
             midiTransportFactory=midiTransportFactory,
             discoverFunction=discoverFunction,
+            environmentCheckFunction=environmentCheckFunction,
         )
         outputFunction("Existing configuration verified; no files were changed.")
         return

@@ -3,9 +3,10 @@
 ## Scope
 
 The maintained runtime is the Python package under
-`python/src/blueboard_macro_handler`. The project deliberately reuses the stable
-BlueBoard Macro Handler lifecycle and adds Katana behavior at the action-dispatch
-boundary. The older prototype modules from the source repository were not copied.
+`python/src/blueboard_macro_handler`. The namespace is retained for import
+compatibility, but the product is a Katana pedalboard rather than a general macro
+handler. Keyboard injection, UDP, process launch, and their operating-system
+backends are intentionally absent.
 
 ## Runtime flow
 
@@ -27,9 +28,19 @@ CLI -> KatanaSysExProbe -> input-first MidoMidiTransport -> RQ1/DT1
 
 ### BlueBoard boundary
 
-`client.py` owns BLE discovery, pairing, notification subscription, last-address
+`client.py` owns BLE discovery, notification subscription, last-address
 persistence, reconnect backoff, the narrow Linux compatibility path, and outbound
 momentary LED packets. It does not import Katana code.
+
+Bleak is the primary Linux transport over BlueZ/D-Bus. If BlueZ omits the
+advertised BLE-MIDI service after connecting, an immutable
+`BlueBoardGattProfile` scopes every notification and write. The compatibility
+path asks `gatttool` for exactly one BLE-MIDI characteristic and exactly one
+`0x2902` CCCD inside its descriptor span. Failed validation may fall back to the
+tested `0x0022`/`0x0023` profile only for a device advertised exactly as
+`iRig BlueBoard` ignoring case. Unknown names, missing tools, malformed output,
+duplicate characteristics/descriptors, and missing descriptors fail closed.
+Neither path pairs, trusts, or edits persistent BlueZ device state.
 
 `ble_midi.py` decodes the channel-voice subset needed by the BlueBoard.
 
@@ -60,6 +71,10 @@ requires callers to distinguish full-wire messages from Mido payloads, preventin
 Inputs and outputs resolve independently. The duplex diagnostic opens the input
 first so its callback is installed before a request can trigger an immediate
 reply. The callback only copies the message and monotonic timestamp into a queue.
+On Linux, onboarding independently derives a stable selector for each direction:
+it considers removal of a trailing ALSA `client:port` coordinate and a redundant
+client prefix, then saves the shortest candidate that still uniquely resolves to
+the chosen full name. Ambiguity preserves the longer selector.
 
 `katana/session.py` owns the shared serialized request matcher. It matches DT1
 replies by device ID, address, length, and checksum; retains invalid/unexpected
@@ -81,10 +96,10 @@ epochs on failure, and attempts bootstrap again on reopen. BLE event handling ne
 waits for a SysEx timeout. `katana/controller.py` retains the compatibility name.
 
 `katana/parameters.py` contains the firmware-scoped SysEx observation registry.
-The six original-KATANA temporary-patch effect flags are recorded as community or
-legacy Mk I probe candidates with `firmwareRange: unknown`. None is production
-readable or writable. Evidence provenance and read/write authorization are
-separate fields so a community address cannot become safe merely by being listed.
+Six original-KATANA v4.00 temporary-patch effect flags are captured-Mk-I,
+production-readable definitions. None is writable. Evidence provenance and
+read/write authorization remain separate so an address cannot become safe merely
+by being listed.
 
 ### Onboarding boundary
 
@@ -101,11 +116,18 @@ Interactive onboarding can refresh only a failed discovery source. Standalone
 rather than onboarding-time state. Configuration and state files are written only
 after readiness passes and the user confirms the proposed mapping.
 
+On Linux, doctor also reports distribution support, kernel, architecture, BlueZ
+version/service/D-Bus/adapter readiness, `gatttool`, ALSA sequencer state,
+Mido/RtMidi versions and APIs, saved and resolved selectors, the configured
+model/firmware, six production-approved effect definitions, and scan results.
+It continues to enumerate only: it never opens either MIDI direction.
+
 ### Side-effect boundary
 
 `ActionDispatcher.invoke()` always logs the requested action. Unless the process
-was started with `--execute-actions`, it returns before obtaining a keyboard
-backend or Katana controller. `midi-inputs` and `midi-outputs` only enumerate
+was started with `--execute-actions`, Katana actions remain dry-run. Harmless
+`log` actions never actuate hardware, and momentary LED feedback is independently
+controlled by `--led-feedback`. `midi-inputs` and `midi-outputs` only enumerate
 ports. `sysex-probe` is a confirmed, predefined read diagnostic; its only DT1
 output is the fixed current-selection editor handshake. `katana-test` is a
 separate, explicit hardware command that requires both the output and MIDI data.
@@ -147,6 +169,11 @@ Supported standard-MIDI actions are:
 - `selectPreset` with `preset` 0-127;
 - `setEffectState` with `effect` and `enabled`;
 - `toggleEffect` with `effect`.
+
+At the JSON binding boundary, only `{"type": "katana", ...}` and harmless
+`{"type": "log", "message": ...}` actions are accepted; `null` leaves a button
+unmapped. Removed keyboard, UDP, launch, and legacy macro aliases produce a
+migration-oriented configuration error.
 
 The MkII profile uses CC16-CC21 for independent effect switches. The original
 KATANA-100 profile uses CC16 Booster/Mod, CC17 Delay/FX, CC18 Reverb, and CC19

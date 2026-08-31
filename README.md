@@ -6,28 +6,28 @@
 > belong to their respective owners.
 
 A Python bridge that turns an iRig BlueBoard into a configurable four-button
-pedalboard for original and MkII BOSS KATANA-100 amplifiers. The original
-KATANA-100 on Windows is the release target; Linux remains an experimental,
-source-tested compatibility path until physical qualification.
+pedalboard for original and MkII BOSS KATANA-100 amplifiers. Version 0.8.0 ports
+the proven original KATANA-100 Mk I workflow from Windows to Linux Mint 22.2
+x86-64. Linux release completion remains gated on the checked-in physical
+acceptance record.
 
 The project carries forward the proven BLE-MIDI connection, decoding, routing,
-reconnection, dry-run, logging, Linux compatibility, and optional momentary LED
-feedback from
+reconnection, dry-run, logging, and optional momentary LED feedback from
 [`iRigBlueBoard-Macro-Handler` v1.0.0](https://github.com/NotsoJharedtrollOx17/iRigBlueBoard-Macro-Handler/tree/v1.0.0).
 It adds a separate USB-MIDI path for documented Katana Program Change and
 Control Change messages plus bounded, read-only original-Katana SysEx probes.
 
-Status: `0.7.0` alpha runtime-state-bootstrap candidate. The original KATANA-100
-A/C/D standard-MIDI path and the six-effect v4.00 SysEx snapshot have worked on
-the target amp. Active v4.00 profiles request that snapshot automatically before
-BlueBoard routing begins; all SysEx access remains read-only.
+Status: `0.8.0` alpha Linux-integration candidate. Automated source gates cover
+the Windows regression baseline and Linux transport behavior. Do not treat the
+release as complete, merge it to `main`, or tag it until every live Linux item in
+`agent-docs/v0.8.0-linux-hardware-acceptance.md` has sanitized evidence.
 
 ## Author
 
 - Abraham Jhared Flores Azcona _(NotsoJharedtrollOx17)_
   `abrahamjhared.flores@gmail.com`
 
-## What v0.7.0 supports
+## What v0.8.0 supports
 
 - BlueBoard A-D input as channel 1 CC20-CC23 with press/release edge routing.
 - BOSS preset selection through standard MIDI Program Change.
@@ -35,10 +35,12 @@ BlueBoard routing begins; all SysEx access remains read-only.
   and independent CC16-CC21 on MkII.
 - Independent exact or unique-substring MIDI input/output selection; no arbitrary first-port choice.
 - Predicted per-preset effect state with an explicit unknown-state failure.
-- Dry-run by default. Amplifier and operating-system actions require
-  `--execute-actions`.
+- Dry-run by default. `--execute-actions` enables configured Katana actions only.
+- A deliberately macro-free action boundary: JSON accepts `katana`, harmless
+  `log`, or `null`; keyboard, UDP, and process-launch actions are rejected with
+  migration guidance.
 - Independent, opt-in momentary BlueBoard LEDs through `--led-feedback`.
-- Unified Windows onboarding plus specialist Windows/Linux helpers, replay
+- Unified Windows and Linux onboarding plus specialist helpers, replay
   fixtures, structured logging, metrics, and a Windows/Linux CI definition.
 - Pure original-KATANA-100 SysEx RQ1/DT1 builders, a strict frame parser,
   base-128 address helpers, checksum verification, and evidence-aware definitions
@@ -58,10 +60,18 @@ BlueBoard routing begins; all SysEx access remains read-only.
 Runtime state synchronization is enabled only for an active original KATANA-100
 Mk I profile at the captured v4.00 firmware with an independent input/output pair.
 Otherwise the run degrades safely: preset selection remains available and unknown
-toggles are rejected. v0.7.0 reads at startup, after Program Change, before every
+toggles are rejected. The synchronized runtime reads at startup, after Program Change, before every
 relative toggle, after its Control Change, and after detected transport recovery.
 Read-before-toggle observes intervening panel/GA-FC/Tone Studio changes without polling.
 No generic SysEx write is exposed.
+
+On Linux, Bleak over BlueZ/D-Bus is primary. If BlueZ connects but omits the
+advertised BLE-MIDI service, the runtime discovers one MIDI value handle and one
+validated `0x2902` descriptor with `gatttool`. Only an exact case-insensitive
+`iRig BlueBoard` name may use the tested `0x0022`/`0x0023` fallback if discovery
+fails. Unknown devices and malformed or duplicate discovery fail closed. The
+runtime never pairs, trusts, or modifies persistent BlueZ device state.
+Configurations requesting `device.pair: true` are rejected.
 
 ## Architecture
 
@@ -91,11 +101,13 @@ output and attempts bounded resynchronization without stopping BlueBoard input.
   toolchain and is not a supported installation path for this release.
 - iRig BlueBoard configured in its validated mode 2 profile.
 - Original KATANA-100 or KATANA-100 MkII with a USB data cable. The original
-  KATANA-100 remains the hardware-qualified runtime target; v0.7.0 does not claim
-  production state synchronization until its checked-in acceptance gate passes.
+  KATANA-100 remains the hardware-qualified runtime target; v0.8.0 Linux release
+  completion still depends on its checked-in live acceptance gate.
 - Model-correct BOSS Tone Studio, compatible firmware, and the official BOSS USB
   driver on Windows.
 - Bluetooth support compatible with Bleak.
+- Linux Mint 22.2 x86-64 for the v0.8.0 Linux target, with BlueZ (including
+  `bluetoothctl` and `gatttool`), ALSA sequencer support, and `aconnect`.
 
 The official BOSS support page currently lists Katana MkII System Program 2.00,
 BOSS Tone Studio 2.1.0, and the Windows 10/11 driver. Check the support page for
@@ -111,7 +123,7 @@ From PowerShell in this repository:
 ```
 
 `onboardPedalboard.ps1` is the normal first-run path. It reuses a compatible local
-v0.7.0 environment or runs setup first, then enumerates Katana MIDI inputs/outputs and
+v0.8.0 environment or runs setup first, then enumerates Katana MIDI inputs/outputs and
 scans for the BlueBoard concurrently. One typed discovery snapshot feeds both the
 guided configuration and readiness evaluation, so the same devices are not
 scanned twice. The wizard asks for the amplifier generation and starter layout,
@@ -298,21 +310,35 @@ runtime uses the same matcher only after the registry's production-read gate pas
 
 ## Linux quick start
 
-Linux remains experimental in v0.7.0: automated regressions run on Linux, but
-the full BlueBoard-to-amplifier path has not been physically qualified.
+The v0.8.0 Linux target is Linux Mint 22.2 x86-64. Power the BlueBoard in mode 2
+by holding C while switching it on, connect the original KATANA-100 Mk I over a
+USB data cable, and close Tone Studio, DAWs, MIDI monitors, and stale pedalboard
+processes before claiming the ports.
 
 ```bash
-chmod +x ./*.sh
 ./setupPedalboard.sh
-./configurePedalboard.sh
-./runPedalboard.sh --debug
-./runPedalboard.sh --debug --execute-actions
+./onboardPedalboard.sh
+./diagnosePedalboard.sh
+./recordPedalboardSession.sh --debug --led-feedback --duration-minutes 5
+./recordPedalboardSession.sh --active --debug --led-feedback --duration-minutes 60
 ```
 
-Use `./setupPedalboard.sh --skip-system` if BlueZ, Python venv support, and ALSA
-runtime libraries are already installed. The inherited Linux `gatttool` fallback
-is used only when BlueZ omits the BlueBoard BLE-MIDI service; its fixed ATT handles
-remain specific to the previously tested BlueBoard profile.
+Setup installs only the Katana runtime by default. Use `--dev` for validation
+tools, `--python-exe PATH` to select Python 3.10-3.12, or `--skip-system` after
+installing BlueZ, Python venv support, and ALSA yourself. It never configures
+`uinput` or changes group membership.
+
+Onboarding lists input and output ports independently, then saves the shortest
+Linux ALSA selector that still resolves uniquely to the chosen enumerated port.
+This normally removes changing `client:port` coordinates and a redundant client
+prefix, while preserving the full name whenever shortening would be ambiguous.
+Run `./onboardPedalboard.sh --verify-existing` after reconnects or reboot.
+
+`diagnosePedalboard.sh` performs fresh read-only OS, BlueZ/D-Bus, adapter, ALSA,
+Mido/RtMidi, selector, profile, approved-definition, and BlueBoard checks. It
+does not open MIDI ports or send commands. The session recorder writes a
+timestamped JSONL log and is dry-run unless `--active` is explicit. Momentary
+`--led-feedback` remains independent of both dry-run and Katana actions.
 
 ## Pedal configuration
 
@@ -338,6 +364,11 @@ Change, the worker lets the new temporary patch settle and replaces the short-li
 `presetStates` prediction with six queried values. C/D refresh the live group before
 choosing the opposite CC value and read it back afterward. Panel, GA-FC, or Tone
 Studio changes are therefore observed on the next toggle without continuous polling.
+
+Bindings may contain only a `katana` action, a harmless `log` action, or `null`.
+The retained `blueboard_macro_handler` import namespace is compatibility-only;
+the old keyboard, UDP, launch, and operating-system backend modules are not part
+of this product.
 
 For the original KATANA-100, a Panel-first profile is included at
 [`python/config/katana-pedalboard-panel.example.json`](python/config/katana-pedalboard-panel.example.json).
@@ -458,6 +489,10 @@ Run the source checks:
 .\python\.venv\Scripts\ruff.exe check python\src\blueboard_macro_handler python\tests
 ```
 
+On Linux, use `./setupPedalboard.sh --dev --skip-system`, then run the same
+`unittest` and `ruff` modules from `python/.venv/bin/python`, followed by
+`bash -n ./*.sh` and `git diff --check`.
+
 ## Evidence boundary and roadmap
 
 Source-level automated validation does not prove the target amplifier accepted a
@@ -479,6 +514,8 @@ See:
 - [`agent-docs/v0.6.0-sysex-hardware-acceptance.md`](agent-docs/v0.6.0-sysex-hardware-acceptance.md), the ordered target-amplifier capture checklist
 - [`agent-docs/v0.7.0-feature-plan.md`](agent-docs/v0.7.0-feature-plan.md), the runtime bootstrap implementation and source gates
 - [`agent-docs/v0.7.0-sysex-runtime-acceptance.md`](agent-docs/v0.7.0-sysex-runtime-acceptance.md), the exact-firmware production-read and reconnect checklist
+- [`agent-docs/v0.8.0-linux-integration-plan.md`](agent-docs/v0.8.0-linux-integration-plan.md), the canonical Linux implementation plan and release gates
+- [`agent-docs/v0.8.0-linux-hardware-acceptance.md`](agent-docs/v0.8.0-linux-hardware-acceptance.md), the required live Linux evidence record
 - [`agent-docs/v1.0.0-mki-sysex-state-awareness-spec.md`](agent-docs/v1.0.0-mki-sysex-state-awareness-spec.md), the complete staged state-awareness specification
 - [`agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md`](agent-docs/KATANA_BLUEBOARD_CODEX_SUMMARY.md), the original implementation brief
 - [`agent-docs/2026-08-23-original-katana100-breakthroughs.md`](agent-docs/2026-08-23-original-katana100-breakthroughs.md), the dated original-Katana hardware breakthrough record

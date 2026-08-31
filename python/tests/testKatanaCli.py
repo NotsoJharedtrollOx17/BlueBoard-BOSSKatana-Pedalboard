@@ -117,7 +117,7 @@ class KatanaCliTests(unittest.TestCase):
             self.assertTrue(report.success)
             self.assertEqual(len(report.observations), 6)
             saved = json.loads(fixture.read_text(encoding="utf-8"))
-            self.assertEqual(saved["projectVersion"], "0.7.0")
+            self.assertEqual(saved["projectVersion"], "0.8.0")
             self.assertTrue(saved["success"])
             self.assertTrue(any("complete wire bytes" in line for line in output))
 
@@ -382,7 +382,7 @@ class KatanaCliTests(unittest.TestCase):
             output: list[str] = []
             with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeTransport), patch(
                 "blueboard_macro_handler.cli.discoverBlueBoards", discover
-            ):
+            ), patch("blueboard_macro_handler.onboarding.inspectLinuxEnvironment", return_value=()):
                 asyncio.run(doctorPedalboard(args, output.append))
             transport = FakeTransport.instances[-1]
             self.assertEqual(transport.opened, [])
@@ -403,7 +403,9 @@ class KatanaCliTests(unittest.TestCase):
             output: list[str] = []
             with patch("blueboard_macro_handler.cli.MidoMidiTransport", FakeTransport), patch(
                 "blueboard_macro_handler.cli.discoverBlueBoards", discover
-            ), self.assertRaisesRegex(RuntimeError, "3 readiness"):
+            ), patch("blueboard_macro_handler.onboarding.inspectLinuxEnvironment", return_value=()), self.assertRaisesRegex(
+                RuntimeError, "3 readiness"
+            ):
                 asyncio.run(doctorPedalboard(args, output.append))
             self.assertEqual(FakeTransport.instances[-1].opened, [])
             self.assertTrue(any(line.startswith("NOT READY") for line in output))

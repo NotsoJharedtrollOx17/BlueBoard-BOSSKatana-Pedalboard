@@ -4,6 +4,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from blueboard_macro_handler.cli import buildParser
 from blueboard_macro_handler.client import DiscoveredDevice
@@ -24,7 +25,7 @@ class RecordingTransport:
         return self.outputNames
 
     def listInputNames(self):
-        return self.outputNames
+        return getattr(self, "inputNames", self.outputNames)
 
     def open(self, name):
         self.opened.append(name)
@@ -103,6 +104,7 @@ class OnboardingTests(unittest.TestCase):
                     interactive=False,
                     midiTransportFactory=lambda: transport,
                     discoverFunction=discover,
+                    environmentCheckFunction=lambda: (),
                 )
             )
             config = json.loads(configPath.read_text(encoding="utf-8"))
@@ -119,6 +121,44 @@ class OnboardingTests(unittest.TestCase):
         self.assertEqual(state["lastAddress"], "AA:BB")
         self.assertTrue(any("reusing the discovery snapshot" in line.casefold() for line in output))
         self.assertTrue(any(line == "Onboarding complete: READY" for line in output))
+
+    def testLinuxOnboardingSavesAndShowsIndependentStableSelectors(self) -> None:
+        transport = RecordingTransport()
+        transport.inputNames = ("KATANA Input:KATANA MIDI 1 24:0",)
+        transport.outputNames = ("KATANA Output:KATANA MIDI 1 27:0",)
+
+        async def discover(_name, _timeout):
+            return [DiscoveredDevice("iRig BlueBoard", "AA:BB", -50, object())]
+
+        with tempfile.TemporaryDirectory() as directory:
+            configPath = Path(directory) / "katana-pedalboard.local.json"
+            args = buildParser().parse_args([
+                "onboard",
+                "--config", str(configPath),
+                "--state-file", str(Path(directory) / "state.json"),
+                "--model", "katana100",
+                "--layout", "panel-first",
+                "--input", transport.inputNames[0],
+                "--output", transport.outputNames[0],
+                "--firmware", "4.00",
+                "--non-interactive",
+                "--accept-profile-state-defaults",
+            ])
+            output: list[str] = []
+            with patch("blueboard_macro_handler.onboarding.sys.platform", "linux"):
+                asyncio.run(onboardPedalboard(
+                    args,
+                    outputFunction=output.append,
+                    interactive=False,
+                    midiTransportFactory=lambda: transport,
+                    discoverFunction=discover,
+                ))
+            config = json.loads(configPath.read_text(encoding="utf-8"))
+
+        self.assertEqual(config["katana"]["inputName"], "KATANA MIDI 1")
+        self.assertEqual(config["katana"]["outputName"], "KATANA MIDI 1")
+        self.assertIn("MIDI input current : KATANA Input:KATANA MIDI 1 24:0", output)
+        self.assertIn("MIDI output saved  : KATANA MIDI 1", output)
 
     def testInteractiveRetryRefreshesOnlyFailedBlueBoardDiscovery(self) -> None:
         transport = RecordingTransport()
@@ -249,6 +289,7 @@ class OnboardingTests(unittest.TestCase):
                     outputFunction=output.append,
                     midiTransportFactory=lambda: transport,
                     discoverFunction=discover,
+                    environmentCheckFunction=lambda: (),
                 )
             )
             self.assertEqual(configPath.read_bytes(), original)

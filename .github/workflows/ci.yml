@@ -20,9 +20,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e .[dev]
+      - run: python -m pip install -e .[katana,dev]
       - run: python -m unittest discover -s python/tests -p "test*.py"
       - run: ruff check python/src/blueboard_macro_handler python/tests
+      - run: git diff --check
       - name: Validate PowerShell helper syntax
         if: runner.os == 'Windows'
         shell: pwsh
@@ -46,7 +47,11 @@ jobs:
         run: bash -n ./*.sh
 
   package-smoke:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,19 +59,43 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip build
       - run: python -m build
-      - name: Install built wheel
+      - name: Install and smoke-test wheel and sdist (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           python -m venv .wheel-test
           $wheel = (Get-ChildItem -LiteralPath dist -Filter *.whl | Select-Object -First 1).FullName
-          .\.wheel-test\Scripts\python.exe -m pip install $wheel
-      - name: Smoke-test installed wheel
-        shell: pwsh
-        run: |
-          if (-not (Test-Path -LiteralPath .\.wheel-test\Scripts\blueboard-katana.exe)) {
-            throw "Wheel did not install the blueboard-katana console entry point."
+          .\.wheel-test\Scripts\python.exe -m pip install "$wheel[katana]"
+          foreach ($environment in @("wheel-test", "sdist-test")) {
+            if ($environment -eq "sdist-test") {
+              python -m venv .sdist-test
+              $sdist = (Get-ChildItem -LiteralPath dist -Filter *.tar.gz | Select-Object -First 1).FullName
+              .\.sdist-test\Scripts\python.exe -m pip install "$sdist[katana]"
+            }
+            $python = ".\.$environment\Scripts\python.exe"
+            & $python -m blueboard_macro_handler --version
+            & $python -m blueboard_macro_handler --help
+            & $python -m blueboard_macro_handler onboard --help
+            & $python -m blueboard_macro_handler validate --config python\config\blueboard.json
+            & $python -m blueboard_macro_handler replay python\tests\fixtures\blueboardPackets.json
+            & $python -c "import importlib.util as u; assert u.find_spec('blueboard_macro_handler.actions.windows') is None; assert u.find_spec('blueboard_macro_handler.actions.linux') is None"
+            if ($LASTEXITCODE -ne 0) { throw "$environment package smoke failed." }
           }
-          .\.wheel-test\Scripts\python.exe -m blueboard_macro_handler --version
-          .\.wheel-test\Scripts\python.exe -m blueboard_macro_handler onboard --help
-          .\.wheel-test\Scripts\python.exe -m blueboard_macro_handler validate --config python\config\blueboard.json
-          .\.wheel-test\Scripts\python.exe -m blueboard_macro_handler replay python\tests\fixtures\blueboardPackets.json
+      - name: Install and smoke-test wheel and sdist (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python -m venv .wheel-test
+          wheel=$(find dist -maxdepth 1 -name '*.whl' -print -quit)
+          .wheel-test/bin/python -m pip install "$wheel[katana]"
+          python -m venv .sdist-test
+          sdist=$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)
+          .sdist-test/bin/python -m pip install "$sdist[katana]"
+          for python_exe in .wheel-test/bin/python .sdist-test/bin/python; do
+            "$python_exe" -m blueboard_macro_handler --version
+            "$python_exe" -m blueboard_macro_handler --help
+            "$python_exe" -m blueboard_macro_handler onboard --help
+            "$python_exe" -m blueboard_macro_handler validate --config python/config/blueboard.json
+            "$python_exe" -m blueboard_macro_handler replay python/tests/fixtures/blueboardPackets.json
+            "$python_exe" -c "import importlib.util as u; assert u.find_spec('blueboard_macro_handler.actions.windows') is None; assert u.find_spec('blueboard_macro_handler.actions.linux') is None"
+          done

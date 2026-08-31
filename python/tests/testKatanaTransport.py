@@ -1,7 +1,13 @@
 import unittest
+from unittest.mock import patch
 
 from blueboard_macro_handler.katana.commands import createProgramChange
-from blueboard_macro_handler.katana.transport import MidoMidiTransport, resolveInputName, resolveOutputName
+from blueboard_macro_handler.katana.transport import (
+    MidoMidiTransport,
+    deriveStablePortSelector,
+    resolveInputName,
+    resolveOutputName,
+)
 
 
 class FakePort:
@@ -71,6 +77,29 @@ class KatanaTransportTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "ambiguous"):
             resolveOutputName("KATANA", ("KATANA PRIMARY", "KATANA CTRL"))
 
+    def testStableSelectorRemovesAlsaCoordinatesAndRedundantClient(self) -> None:
+        names = (
+            "KATANA:KATANA MIDI 1 24:0",
+            "KATANA:KATANA MIDI 2 24:1",
+        )
+        self.assertEqual(deriveStablePortSelector(names[0], names), "KATANA MIDI 1")
+        rebooted = (
+            "KATANA:KATANA MIDI 1 31:0",
+            "KATANA:KATANA MIDI 2 31:1",
+        )
+        self.assertEqual(resolveInputName("KATANA MIDI 1", rebooted), rebooted[0])
+        self.assertEqual(resolveOutputName("KATANA MIDI 1", rebooted), rebooted[0])
+
+    def testStableSelectorPreservesExactNameWhenShorteningIsAmbiguous(self) -> None:
+        names = ("A:KATANA MIDI 1 24:0", "B:KATANA MIDI 1 25:0")
+        self.assertEqual(deriveStablePortSelector(names[0], names), "A:KATANA MIDI 1")
+
+    def testStableSelectorsResolveInputAndOutputIndependently(self) -> None:
+        inputNames = ("KATANA Input:KATANA MIDI 1 24:0",)
+        outputNames = ("KATANA Output:KATANA MIDI 1 27:0",)
+        self.assertEqual(deriveStablePortSelector(inputNames[0], inputNames), "KATANA MIDI 1")
+        self.assertEqual(deriveStablePortSelector(outputNames[0], outputNames), "KATANA MIDI 1")
+
     def testTransportListsOpensSendsAndCloses(self) -> None:
         mido = FakeMido(("1- KATANA",))
         transport = MidoMidiTransport(mido)
@@ -103,6 +132,19 @@ class KatanaTransportTests(unittest.TestCase):
     def testTransportRejectsSendBeforeOpen(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "not open"):
             MidoMidiTransport(FakeMido()).send(createProgramChange(0, 0))
+
+    def testLinuxOpenFailureIncludesPortOwnershipGuidance(self) -> None:
+        mido = FakeMido()
+
+        def failOpen(_name):
+            raise OSError("resource busy")
+
+        mido.open_output = failOpen
+        with patch("blueboard_macro_handler.katana.transport.sys.platform", "linux"), self.assertRaisesRegex(
+            RuntimeError,
+            "close Tone Studio, DAWs",
+        ):
+            MidoMidiTransport(mido).open("KATANA")
 
     def testTransportAttemptsBothClosesWhenOutputCloseFails(self) -> None:
         mido = FakeMido()

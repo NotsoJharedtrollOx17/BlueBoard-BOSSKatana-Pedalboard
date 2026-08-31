@@ -31,6 +31,10 @@ def configureLogging(debug: bool = False, jsonLogs: bool = False, logFile: str |
     for handler in handlers:
         handler.setFormatter(formatter)
         root.addHandler(handler)
+    # Bleak's DEBUG stream includes every nearby device and raw D-Bus property.
+    # Application debug logs remain detailed without collecting unrelated devices.
+    logging.getLogger("bleak").setLevel(logging.WARNING)
+    logging.getLogger("dbus_fast").setLevel(logging.WARNING)
 
 
 class WallClockFormatter(logging.Formatter):

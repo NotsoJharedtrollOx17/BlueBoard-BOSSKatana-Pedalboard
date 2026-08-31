@@ -41,7 +41,7 @@ if ($PSBoundParameters.ContainsKey("DurationMinutes")) {
     $sessionArgs += @("--duration-seconds", $durationSeconds.ToString([Globalization.CultureInfo]::InvariantCulture))
 }
 
-$mode = if ($Active) { "ACTIVE: MIDI and configured actions are enabled." } else { "DRY RUN: no MIDI or operating-system actions will run." }
+$mode = if ($Active) { "ACTIVE: configured Katana actions are enabled." } else { "DRY RUN: no Katana actions will run." }
 Write-Host "Recording a pedalboard session. $mode"
 if ($PSBoundParameters.ContainsKey("DurationMinutes")) {
     Write-Host "The session will stop cleanly after $DurationMinutes minute(s)."

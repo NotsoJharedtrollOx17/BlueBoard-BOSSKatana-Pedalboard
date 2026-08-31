@@ -14,17 +14,34 @@ class PackageConfigTests(unittest.TestCase):
         self.addCleanup(path.unlink, missing_ok=True)
         return path
 
-    def testLoadsTypedKeyboardAndUnmappedActions(self) -> None:
-        path = self.writeConfig({"bindings": [{"cc": 20, "action": {"type": "keyboard", "keys": ["ctrl", "r"]}}, {"cc": 22, "action": None}]})
+    def testLoadsTypedLogAndUnmappedActions(self) -> None:
+        path = self.writeConfig({"bindings": [
+            {"cc": 20, "action": {"type": "log", "message": "ready"}},
+            {"cc": 22, "action": None},
+        ]})
         config = loadConfig(path)
-        self.assertEqual(config.bindings[0].action.keys, ("CTRL", "R"))
+        self.assertEqual(config.bindings[0].action.message, "ready")
         self.assertIsNone(config.bindings[1].action)
 
-    def testLegacyActionNamesRemainCompatible(self) -> None:
-        config = loadConfig(self.writeConfig({"bindings": [{"cc": 20, "action": "ctrlShiftR"}]}))
-        self.assertEqual(config.bindings[0].action.keys, ("CTRL", "SHIFT", "R"))
+    def testRemovedMacroActionsFailWithMigrationGuidance(self) -> None:
+        removed = (
+            {"type": "keyboard", "keys": ["ctrl", "r"]},
+            {"type": "udp", "host": "127.0.0.1", "port": 9000},
+            {"type": "launch", "program": "example"},
+            "ctrlShiftR",
+        )
+        for action in removed:
+            with self.subTest(action=action), self.assertRaisesRegex(ConfigError, "removed macro|was removed"):
+                loadConfig(self.writeConfig({"bindings": [{"cc": 20, "action": action}]}))
 
-    def testRejectsInvalidCcAndUdpPort(self) -> None:
-        for binding in ({"cc": 128, "action": None}, {"cc": 20, "action": {"type": "udp", "port": 70000}}):
+    def testPersistentPairingIsRejected(self) -> None:
+        with self.assertRaisesRegex(ConfigError, "never changes persistent BlueZ pairing"):
+            loadConfig(self.writeConfig({
+                "device": {"name": "BlueBoard", "scanTimeout": 20, "pair": True},
+                "bindings": [{"cc": 20, "action": None}],
+            }))
+
+    def testRejectsInvalidCcAndUnknownActionType(self) -> None:
+        for binding in ({"cc": 128, "action": None}, {"cc": 20, "action": {"type": "osc"}}):
             with self.subTest(binding=binding), self.assertRaises(ConfigError):
                 loadConfig(self.writeConfig({"bindings": [binding]}))
