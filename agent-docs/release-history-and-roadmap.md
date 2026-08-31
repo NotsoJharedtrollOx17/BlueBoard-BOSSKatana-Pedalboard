@@ -140,8 +140,9 @@ both-on or unknown member states.
 New Mk I onboarding profiles contain independent input/output names, device ID,
 and bounded state-sync settings. Legacy profiles still load with synchronization
 disabled and an explicit prediction-mode warning. Program Change and Control Change
-continue to actuate through the physically proven standard-MIDI plane; their local
-updates are labeled predicted/stale until v0.8.0 adds post-action readback.
+continue to actuate through the physically proven standard-MIDI plane. Hardware
+testing exposed that each Tone Setting replaces the live temporary patch, so v0.7.0
+now resynchronizes after PC and uses read-actuate-read verification for toggles.
 
 The runtime will consume only definitions marked production-readable for the exact
 configured firmware. Existing ignored captures demonstrate working replies but do
@@ -162,13 +163,13 @@ remain pending; source implementation does not bypass that evidence gate.
 | MIDI output resolution/transport | Implemented | Fake Mido transport tests |
 | MIDI input resolution/duplex probe transport | Implemented, hardware pending | Input-first fake-Mido tests; target capture pending |
 | Read-only Mk I SysEx CLI | Implemented, hardware pending | Bounded request/reply tests; target checksum-valid replies pending |
-| Preset/effect controller state | Runtime bootstrap implemented; hardware gate pending | Six-value snapshot and grouped derivation are source-tested; post-action state remains predicted |
+| Preset/effect controller state | Runtime read-actuate-verify implemented; hardware acceptance pending | Startup/post-PC snapshots, grouped pre-toggle reads, and post-CC mismatch tests |
 | Original KATANA-100 USB-MIDI control | A/C/D validated on Windows | PC0, grouped CC16, and grouped CC17 physically observed 2026-08-23 |
 | KATANA-100 MkII USB-MIDI control | Source-supported, hardware unvalidated | Official profile and unit tests only; it is not the user's amplifier |
 | Interactive effect probe | Model-aware in source | Profile-derived labels/CCs; physical MkI probe record pending |
 | Unified onboarding, guided configuration, and doctor | Implemented | Snapshot reuse is automated; Windows hardware smoke remains pending |
 | Katana reconnect | Duplex resync-on-next-operation implemented | Simulated failure, invalidation, reopen, and resync tests |
-| Bidirectional state synchronization | Startup/recovery source path implemented | Exact-firmware registry promotion and target hardware acceptance pending; post-action verification is v0.8.0 |
+| Bidirectional state synchronization | Startup/recovery/post-action source path implemented | Exact-firmware v4.00 reads promoted; target hardware acceptance pending |
 | Deep parameter editing | Not implemented | No deep-parameter definitions or runtime SysEx write path |
 | Persistent Katana-state LEDs | Not implemented | Requires authoritative state source |
 | C++17 port | Deferred | Python fixtures should become specification |

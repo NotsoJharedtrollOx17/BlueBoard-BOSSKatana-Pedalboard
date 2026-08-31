@@ -5,6 +5,7 @@ from blueboard_macro_handler.katana.parameters import (
     ParameterDefinition,
     calculateRolandChecksum,
     parameterDefinitions,
+    productionDefinitionsFor,
 )
 
 
@@ -37,26 +38,27 @@ class KatanaCommandTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             calculateRolandChecksum((0x80,))
 
-    def testSysExRegistryContainsOnlyProbeOnlyMkIEffectFlags(self) -> None:
+    def testSysExRegistryContainsSixCapturedMkIV400ProductionReadFlags(self) -> None:
         expected = {
-            "effects.boost.enabled": ((0x60, 0x00, 0x00, 0x30), "communityMkI"),
-            "effects.mod.enabled": ((0x60, 0x00, 0x01, 0x40), "communityMkI"),
-            "effects.fx.enabled": ((0x60, 0x00, 0x03, 0x4C), "communityMkI"),
-            "effects.delay.enabled": ((0x60, 0x00, 0x05, 0x60), "communityMkI"),
-            "effects.reverb.enabled": ((0x60, 0x00, 0x06, 0x10), "communityMkI"),
-            "effects.effectLoop.enabled": ((0x60, 0x00, 0x06, 0x55), "legacyKatana"),
+            "effects.boost.enabled": (0x60, 0x00, 0x00, 0x30),
+            "effects.mod.enabled": (0x60, 0x00, 0x01, 0x40),
+            "effects.fx.enabled": (0x60, 0x00, 0x03, 0x4C),
+            "effects.delay.enabled": (0x60, 0x00, 0x05, 0x60),
+            "effects.reverb.enabled": (0x60, 0x00, 0x06, 0x10),
+            "effects.effectLoop.enabled": (0x60, 0x00, 0x06, 0x55),
         }
         self.assertEqual(set(parameterDefinitions), set(expected))
         for name, definition in parameterDefinitions.items():
             with self.subTest(name=name):
-                self.assertEqual((definition.address, definition.evidence), expected[name])
+                self.assertEqual(definition.address, expected[name])
                 self.assertEqual(definition.model, "katana100")
-                self.assertEqual(definition.firmwareRange, "unknown")
+                self.assertEqual(definition.firmwareRange, "4.00")
+                self.assertEqual(definition.evidence, "capturedMkI")
                 self.assertEqual(definition.dataLength, 1)
-                self.assertEqual(definition.readAccess, "probe")
+                self.assertEqual(definition.readAccess, "production")
                 self.assertEqual(definition.writeAccess, "none")
                 self.assertTrue(definition.mayProbe)
-                self.assertFalse(definition.mayReadInProduction)
+                self.assertTrue(definition.mayReadInProduction)
                 self.assertFalse(definition.mayWrite)
                 self.assertFalse(definition.decodeValue((0,)))
                 self.assertTrue(definition.decodeValue((1,)))
@@ -66,6 +68,8 @@ class KatanaCommandTests(unittest.TestCase):
                     definition.decodeValue((0, 0))
                 with self.assertRaises(ValueError):
                     definition.decodeValue((2,))
+        self.assertEqual(productionDefinitionsFor("katana100", "4.00"), tuple(parameterDefinitions.values()))
+        self.assertEqual(productionDefinitionsFor("katana100", "unknown"), ())
 
     def testParameterDefinitionEnforcesEvidenceAccessBoundary(self) -> None:
         baseArguments = {

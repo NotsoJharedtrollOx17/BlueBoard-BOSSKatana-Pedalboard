@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from time import monotonic
+from time import monotonic, sleep
 from typing import Literal
 
 from ..config import ActionSpec, KatanaConfig
@@ -13,6 +14,9 @@ from .session import KatanaSysExSession, SysExObservation
 from .transport import MidiTransport
 
 logger = logging.getLogger("blueboard.katana")
+
+PROGRAM_CHANGE_SETTLE_SECONDS = 0.1
+CONTROL_CHANGE_SETTLE_SECONDS = 0.05
 
 StateSource = Literal["queried", "predicted", "unknown", "stale"]
 
@@ -80,10 +84,18 @@ def deriveGroupState(snapshot: AmpStateSnapshot, effect: str) -> bool | None:
 class KatanaRuntime:
     """Serialized owner of live Katana MIDI reads, PC messages, and CC messages."""
 
-    def __init__(self, config: KatanaConfig, transport: MidiTransport, metrics: RunMetrics | None = None) -> None:
+    def __init__(
+        self,
+        config: KatanaConfig,
+        transport: MidiTransport,
+        metrics: RunMetrics | None = None,
+        *,
+        sleepFunction: Callable[[float], None] = sleep,
+    ) -> None:
         self.config = config
         self.transport = transport
         self.metrics = metrics or RunMetrics()
+        self.sleepFunction = sleepFunction
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="katana-midi")
         self.session: KatanaSysExSession | None = None
         self.snapshot = unknownSnapshot(0)
@@ -170,7 +182,7 @@ class KatanaRuntime:
             self.config.outputName,
             self.connectionEpoch,
         )
-        return self._synchronize()
+        return self._synchronize("startupOrRecovery")
 
     def _markOpened(self) -> None:
         self.connectionEpoch += 1
@@ -181,7 +193,7 @@ class KatanaRuntime:
         self.hasOpened = True
         self.isOpen = True
 
-    def _synchronize(self) -> AmpStateSnapshot:
+    def _synchronize(self, reason: str) -> AmpStateSnapshot:
         if self.session is None:
             return self.snapshot
         startedAt = monotonic()
@@ -191,9 +203,14 @@ class KatanaRuntime:
             self.metrics.katanaStateSyncFailures += 1
             self.snapshot = unknownSnapshot(self.connectionEpoch, str(error))
             self.effectState = {}
-            logger.warning("katana state sync=failed epoch=%d error=%s", self.connectionEpoch, error)
+            logger.warning(
+                "katana state sync=failed reason=%s epoch=%d error=%s",
+                reason,
+                self.connectionEpoch,
+                error,
+            )
             return self.snapshot
-        snapshot = self._snapshotFromObservations(observations, startedAt)
+        snapshot = self._snapshotFromObservations(observations, startedAt, reason)
         self.snapshot = snapshot
         self.effectState = {
             effect: value
@@ -208,8 +225,9 @@ class KatanaRuntime:
             self.metrics.katanaStateSyncs += 1
             status = "complete"
         logger.info(
-            "katana state sync=%s epoch=%d latencyMs=%.3f",
+            "katana state sync=%s reason=%s epoch=%d latencyMs=%.3f",
             status,
+            reason,
             self.connectionEpoch,
             (monotonic() - startedAt) * 1000,
         )
@@ -219,6 +237,7 @@ class KatanaRuntime:
         self,
         observations: tuple[SysExObservation, ...],
         observedAt: float,
+        reason: str,
     ) -> AmpStateSnapshot:
         byName = {item.name: item for item in observations}
         effects: dict[str, EffectStateValue] = {}
@@ -231,10 +250,11 @@ class KatanaRuntime:
             source: StateSource = "queried" if value is not None and error is None else "unknown"
             effects[name] = EffectStateValue(value, source, observedAt if value is not None else None, self.connectionEpoch, error)
             logger.info(
-                "katana state effect=%s value=%s source=%s epoch=%d",
+                "katana state effect=%s value=%s source=%s reason=%s epoch=%d",
                 name,
                 "unknown" if value is None else ("on" if value else "off"),
                 source,
+                reason,
                 self.connectionEpoch,
             )
         return AmpStateSnapshot(self.connectionEpoch, monotonic(), effects)
@@ -266,14 +286,31 @@ class KatanaRuntime:
             f"message=programChange channel={self.config.midiChannel} program={preset}",
         )
         self.currentPreset = preset
-        self.effectState = dict(self.config.presetStates.get(preset, {}))
+        predictedState = dict(self.config.presetStates.get(preset, {}))
+        self.effectState = predictedState
         self._markSnapshotStale("program change")
-        for effect, enabled in self.effectState.items():
+        for effect, enabled in predictedState.items():
             logger.info(
                 "katana effect=%s state=%s source=predicted",
                 effect,
                 "on" if enabled else "off",
             )
+        if self.config.stateSync.enabled:
+            # Program Change replaces the amp's live temporary patch. Give that
+            # copy a bounded settling window on the Katana worker, then replace
+            # configuration predictions with a fresh authoritative snapshot.
+            self.sleepFunction(PROGRAM_CHANGE_SETTLE_SECONDS)
+            snapshot = self._synchronize("programChange")
+            for effect, predicted in predictedState.items():
+                actual = deriveGroupState(snapshot, effect)
+                if actual is not None and actual != predicted:
+                    self.metrics.katanaStateMismatches += 1
+                    logger.info(
+                        "katana state mismatch effect=%s predicted=%s queried=%s after=programChange",
+                        effect,
+                        "on" if predicted else "off",
+                        "on" if actual else "off",
+                    )
 
     def _setEffectState(self, effect: str, enabled: bool) -> None:
         try:
@@ -292,10 +329,39 @@ class KatanaRuntime:
             effect,
             "on" if enabled else "off",
         )
+        if self.config.stateSync.enabled:
+            self.sleepFunction(CONTROL_CHANGE_SETTLE_SECONDS)
+            snapshot = self._synchronize("controlChangeReadback")
+            actual = deriveGroupState(snapshot, effect)
+            if actual is None:
+                raise RuntimeError(f"effect state readback is unknown after control change: {effect}")
+            if actual != enabled:
+                self.metrics.katanaStateMismatches += 1
+                logger.error(
+                    "katana state mismatch effect=%s requested=%s queried=%s after=controlChange",
+                    effect,
+                    "on" if enabled else "off",
+                    "on" if actual else "off",
+                )
+                raise RuntimeError(
+                    f"effect state mismatch after control change: {effect} "
+                    f"requested={'on' if enabled else 'off'} queried={'on' if actual else 'off'}"
+                )
+            logger.info(
+                "katana effect=%s state=%s source=queried verified=controlChange",
+                effect,
+                "on" if actual else "off",
+            )
 
     def _toggleEffect(self, effect: str) -> None:
         if self.config.stateSync.enabled:
-            self._ensureOpenAndSync()
+            # The active temporary patch can change through Program Change, the
+            # front panel, GA-FC, or Tone Studio. Refresh immediately before a
+            # relative toggle so the same button press reads and then actuates.
+            if self.isOpen:
+                self._synchronize("preToggle")
+            else:
+                self._ensureOpenAndSync()
         if effect not in self.effectState:
             raise RuntimeError(f"effect state is unknown: {effect}; runtime toggle rejected")
         self._setEffectState(effect, not self.effectState[effect])

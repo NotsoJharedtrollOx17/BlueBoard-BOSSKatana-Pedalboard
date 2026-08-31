@@ -164,8 +164,12 @@ settings for the connected model are authoritative.
   bounded resync. Unknown toggles are rejected; preset selection remains available.
 - Ctrl+C and normal shutdown drain the Katana queue, close both ports, and join
   the worker before returning.
-- Selecting a preset replaces predicted effect state with the configured state
-  for that preset and labels the earlier queried snapshot stale.
+- Selecting a preset briefly loads its configured prediction, labels the earlier
+  snapshot stale, waits on the Katana worker for the temporary patch to settle,
+  and replaces the prediction with six queried values.
+- A toggle refreshes the live temporary patch before deriving the opposite value,
+  sends its standard-MIDI CC, and reads back afterward. A mismatch is counted and
+  reported as a failed action rather than confirmed state.
 
 ## Metrics
 
@@ -209,9 +213,9 @@ Do not add raw addresses to button bindings. Add a `ParameterDefinition` with:
 Community and legacy definitions may be used only by the bounded probe.
 Production reads and validated writes require `official` or reproduced
 `capturedMkI` evidence plus explicit access authorization. v0.7.0 supplies the
-worker, transaction guard, reconnect epoch/invalidation, and coherent bootstrap
-snapshot. Post-action verification remains v0.8.0; the router must never block
-waiting for a response.
+worker, transaction guard, reconnect epoch/invalidation, coherent bootstrap,
+post-PC synchronization, and read-actuate-verify toggles. The router never blocks
+waiting for a response; the single Katana worker owns every transaction.
 
 ## Branch and release process
 

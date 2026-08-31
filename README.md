@@ -18,10 +18,9 @@ It adds a separate USB-MIDI path for documented Katana Program Change and
 Control Change messages plus bounded, read-only original-Katana SysEx probes.
 
 Status: `0.7.0` alpha runtime-state-bootstrap candidate. The original KATANA-100
-A/C/D standard-MIDI path and standalone six-effect SysEx reads have worked on the
-target amp. Runtime synchronization remains gated until the exact firmware and
-per-effect reproduction/restoration record are committed; source validation does
-not silently promote community addresses to production evidence.
+A/C/D standard-MIDI path and the six-effect v4.00 SysEx snapshot have worked on
+the target amp. Active v4.00 profiles request that snapshot automatically before
+BlueBoard routing begins; all SysEx access remains read-only.
 
 ## Author
 
@@ -52,15 +51,16 @@ not silently promote community addresses to production evidence.
   connection epoch, structured metrics, and opt-in sanitized JSON fixtures.
 - A single non-blocking Katana worker that serializes live RQ1, Program Change,
   and Control Change operations while BlueBoard BLE notifications continue.
-- Atomic six-effect startup/recovery snapshots, compound Booster/Mod and Delay/FX
+- Atomic six-effect startup/recovery/post-PC snapshots, compound Booster/Mod and Delay/FX
   derivation, per-value queried/predicted/unknown/stale sources, and safe degraded
   behavior when a required read is unavailable.
 
-Runtime state synchronization is enabled only for an active Mk I profile whose
-model, exact firmware, and registry definitions are approved for production reads.
+Runtime state synchronization is enabled only for an active original KATANA-100
+Mk I profile at the captured v4.00 firmware with an independent input/output pair.
 Otherwise the run degrades safely: preset selection remains available and unknown
-toggles are rejected. v0.7.0 reads at startup and after detected transport recovery;
-post-PC/CC verification and continuous external-change awareness remain v0.8.0 work.
+toggles are rejected. v0.7.0 reads at startup, after Program Change, before every
+relative toggle, after its Control Change, and after detected transport recovery.
+Read-before-toggle observes intervening panel/GA-FC/Tone Studio changes without polling.
 No generic SysEx write is exposed.
 
 ## Architecture
@@ -149,7 +149,7 @@ For repeatable or headless setup, specify every hardware decision explicitly:
 
 ```powershell
 .\onboardPedalboard.ps1 -NonInteractive -Model katana100 `
-  -Layout panel-first -Output "KATANA 1" -Address "BLUEBOARD-ADDRESS" `
+  -Layout panel-first -Input "KATANA 0" -Output "KATANA 1" -Firmware "4.00" `
   -AcceptProfileStateDefaults -Force
 ```
 
@@ -333,10 +333,11 @@ remains a reference for manual customization. The layout is:
 | D | CC23 press | Toggle Delay/FX / CC17 |
 
 The Mk I example enables `stateSync`, records independent input/output names, and
-requests a six-effect snapshot at active startup. Queried values seed C/D safely.
-After A or B sends Program Change, `presetStates` remains the explicitly labeled
-prediction until v0.8.0 adds post-action readback. Panel, GA-FC, or Tone Studio
-changes are not continuously detected in v0.7.0.
+requests a six-effect snapshot at active startup. After A or B sends Program
+Change, the worker lets the new temporary patch settle and replaces the short-lived
+`presetStates` prediction with six queried values. C/D refresh the live group before
+choosing the opposite CC value and read it back afterward. Panel, GA-FC, or Tone
+Studio changes are therefore observed on the next toggle without continuous polling.
 
 For the original KATANA-100, a Panel-first profile is included at
 [`python/config/katana-pedalboard-panel.example.json`](python/config/katana-pedalboard-panel.example.json).
@@ -348,9 +349,9 @@ to Delay/FX. Test it with:
   --config .\python\config\katana-pedalboard-panel.example.json --debug --execute-actions
 ```
 
-The Panel profile queries Booster/Mod and Delay/FX at active startup once its
-firmware evidence is approved. `presetStates["4"]` remains the prediction used
-after selecting Panel until v0.8.0 adds post-Program-Change verification.
+The Panel profile queries all six effect flags at active startup and after selecting
+Panel for the captured Mk I v4.00 firmware. `presetStates["4"]` is only a labeled
+prediction during the bounded Program Change settling window.
 
 Validate any edited configuration without connecting hardware:
 
@@ -443,9 +444,9 @@ feature/<name> -> dev -> main -> version tag
 
 - `dev` is the integration branch.
 - `main` is the release-ready branch.
-- Runtime SysEx bootstrap is implemented behind the capture/reproduction gate;
-  probe candidates are not production-readable until exact-firmware evidence is
-  committed and their registry access is promoted deliberately.
+- Runtime SysEx bootstrap is production-readable only for the captured original
+  KATANA-100 Mk I v4.00 effect-flag definitions; other firmware values degrade
+  safely without sending a runtime SysEx request.
 - `updatePedalboard.ps1 -Branch dev` and `updatePedalboard.sh --branch dev` support
   explicit development updates; production updates default to `main`.
 

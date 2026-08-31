@@ -2,6 +2,7 @@ param(
     [switch]$Dev,
     [string]$PythonExe,
     [switch]$RefreshEnvironment,
+    [string]$Input,
     [string]$Output,
     [ValidateSet("katana100", "katana100MkII")]
     [string]$Model,
@@ -24,7 +25,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = $PSScriptRoot
 $venvPythonExe = Join-Path $repoRoot "python\.venv\Scripts\python.exe"
 $configFile = Join-Path $repoRoot "python\config\katana-pedalboard.local.json"
-$requiredVersion = "0.4.0"
+$requiredVersion = "0.7.0"
 
 function Test-OnboardingEnvironment([string]$Candidate) {
     if (-not (Test-Path -LiteralPath $Candidate -PathType Leaf)) { return $false }
@@ -47,13 +48,13 @@ if ($RefreshEnvironment -or -not $environmentReady) {
         throw "Pedalboard setup failed with exit code $LASTEXITCODE."
     }
     if (-not (Test-OnboardingEnvironment $venvPythonExe)) {
-        throw "Setup completed, but the local v0.4.0 environment is not ready."
+        throw "Setup completed, but the local v0.7.0 environment is not ready."
     }
 } else {
-    Write-Host "Reusing the compatible local v0.4.0 environment."
+    Write-Host "Reusing the compatible local v0.7.0 environment."
 }
 
-$profileOptions = @("Output", "Model", "Layout", "MidiChannel", "Firmware", "Name", "Address", "ScanTimeout", "NonInteractive", "AcceptProfileStateDefaults")
+$profileOptions = @("Input", "Output", "Model", "Layout", "MidiChannel", "Firmware", "Name", "Address", "ScanTimeout", "NonInteractive", "AcceptProfileStateDefaults")
 $hasProfileOptions = @($profileOptions | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
 if ($VerifyExisting -and $Force) {
     throw "-VerifyExisting cannot be combined with -Force."
@@ -73,6 +74,7 @@ if ($VerifyExisting -or ((Test-Path -LiteralPath $configFile -PathType Leaf) -an
     Write-Host "Starting unified read-only hardware onboarding..."
 }
 if ($PSBoundParameters.ContainsKey("Output")) { $onboardArgs += @("--output", $Output) }
+if ($PSBoundParameters.ContainsKey("Input")) { $onboardArgs += @("--input", $Input) }
 if ($PSBoundParameters.ContainsKey("Model")) { $onboardArgs += @("--model", $Model) }
 if ($PSBoundParameters.ContainsKey("Layout")) { $onboardArgs += @("--layout", $Layout) }
 if ($PSBoundParameters.ContainsKey("MidiChannel")) { $onboardArgs += @("--midi-channel", $MidiChannel) }
