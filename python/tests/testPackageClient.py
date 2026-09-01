@@ -319,6 +319,7 @@ class PackageClientTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("blueboard_macro_handler.client.discoverBlueBoards", AsyncMock(return_value=discovered)),
             patch("bleak.BleakClient", OmittedServiceBleakClient),
+            patch("blueboard_macro_handler.client.sys.platform", "linux"),
             patch.object(client, "runBluezGatttoolFallback", side_effect=fallback),
         ):
             await client.run(stopEvent)
