@@ -11,8 +11,8 @@ the Tone Studio MIDI settings screen established that the physical amplifier is
 the original 100 W KATANA-100 (MkI). This note preserves the correction and the
 working configuration so later work does not repeat the MkI/MkII confusion.
 
-The fuller evidence record remains in
-[`protocol-evidence-and-hardware-validation.md`](protocol-evidence-and-hardware-validation.md).
+The consolidated evidence guide is
+[`reference/04-protocol-evidence-and-hardware-validation.md`](reference/04-protocol-evidence-and-hardware-validation.md).
 
 ## Confirmed hardware facts
 

@@ -214,16 +214,12 @@ repeat affected gates. Do not move a tag to hide a changed release commit.
 
 ## Historical document index
 
-The five canonical references summarize but do not delete these records:
+The five canonical references summarize these retained evidence records:
 
 - `2026-08-23-original-katana100-breakthroughs.md`: physical model correction.
-- `KATANA_BLUEBOARD_CODEX_SUMMARY.md`: original large implementation brief.
-- `v0.2.0-*` through `v0.8.0-*`: version plans and acceptance records.
+- `v0.2.0-*` through `v0.8.0-*` acceptance records: dated configuration and
+  physical-validation evidence.
 - `v1.0.0-mki-sysex-state-awareness-spec.md`: full protocol/state rationale.
-- `V0.8.0_LINUX_PORT_ANALYSIS.md`: detailed Linux gap analysis.
-- `architecture-and-extension-guide.md`: earlier architecture consolidation.
-- `protocol-evidence-and-hardware-validation.md`: earlier evidence consolidation.
-- `release-history-and-roadmap.md`: earlier chronological consolidation.
 
 Use the historical files when exact wording, dates, commands, or unchecked
 evidence are required. Update dated acceptance records rather than overwriting
