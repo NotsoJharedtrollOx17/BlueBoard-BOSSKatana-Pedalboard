@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blueboard-boss-katana-pedalboard"
-version = "0.8.0"
+version = "1.0.0"
 description = "iRig BlueBoard to BOSS Katana MIDI bridge"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{name = "Abraham Jhared Flores Azcona"}]
 dependencies = ["bleak>=1.0,<4"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",

@@ -43,7 +43,7 @@ class LinuxDiagnosticsTests(unittest.TestCase):
             checks = inspectLinuxEnvironment()
 
         byArea = {check.area: check for check in checks}
-        self.assertIn("qualified target", byArea["Linux distribution"].message)
+        self.assertIn("supported target", byArea["Linux distribution"].message)
         for area in (
             "Architecture", "Kernel", "BlueZ", "BlueZ D-Bus", "BlueZ service",
             "Bluetooth adapter", "BlueBoard compatibility", "ALSA sequencer", "Mido backend",

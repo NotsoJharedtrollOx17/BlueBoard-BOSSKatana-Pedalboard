@@ -117,7 +117,7 @@ class KatanaCliTests(unittest.TestCase):
             self.assertTrue(report.success)
             self.assertEqual(len(report.observations), 6)
             saved = json.loads(fixture.read_text(encoding="utf-8"))
-            self.assertEqual(saved["projectVersion"], "0.8.0")
+            self.assertEqual(saved["projectVersion"], "1.0.0")
             self.assertTrue(saved["success"])
             self.assertTrue(any("complete wire bytes" in line for line in output))
 

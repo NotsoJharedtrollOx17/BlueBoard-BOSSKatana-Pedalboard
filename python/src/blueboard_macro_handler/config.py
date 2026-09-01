@@ -154,7 +154,7 @@ def parseAction(value: Any, context: str) -> ActionSpec | None:
         if value in removedLegacyActions:
             raise ConfigError(
                 f"{context} uses removed macro action {value!r}; "
-                "v0.8.0 supports only Katana, log, or null actions"
+                "v1.0.0 supports only Katana, log, or null actions"
             )
         return ActionSpec("log", message=value)
     raw = _requireObject(value, context)
@@ -162,7 +162,7 @@ def parseAction(value: Any, context: str) -> ActionSpec | None:
     if actionType in removedActionTypes:
         raise ConfigError(
             f"{context}.type {actionType!r} was removed from the Katana pedalboard; "
-            "v0.8.0 supports only Katana, log, or null actions"
+                "v1.0.0 supports only Katana, log, or null actions"
         )
     if actionType not in {"log", "katana"}:
         raise ConfigError(f"{context}.type must be log or katana")
@@ -304,7 +304,7 @@ def loadConfig(path: Path) -> AppConfig:
     if not isinstance(name, str) or not isinstance(timeout, (int, float)) or timeout <= 0 or not isinstance(pair, bool):
         raise ConfigError("device name, scanTimeout, or pair is invalid")
     if pair:
-        raise ConfigError("device.pair=true is unsupported; v0.8.0 never changes persistent BlueZ pairing state")
+        raise ConfigError("device.pair=true is unsupported; v1.0.0 never changes persistent BlueZ pairing state")
     katana = parseKatana(root.get("katana"))
     katanaActions = [binding.action for binding in bindings if binding.action and binding.action.type == "katana"]
     if katanaActions and katana is None:

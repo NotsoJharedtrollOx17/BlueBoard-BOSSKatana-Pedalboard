@@ -41,13 +41,13 @@ def _distributionCheck() -> LinuxEnvironmentCheck:
     prettyName = osRelease.get("PRETTY_NAME", f"{identifier} {version}")
     if identifier == "linuxmint" and version == "22.2":
         status = "PASS"
-        message = f"{prettyName}; v0.8.0 qualified target"
+        message = f"{prettyName}; v1.0.0 supported target"
     elif identifier in {"linuxmint", "ubuntu"}:
         status = "WARN"
         message = f"{prettyName}; compatible APT-family system, hardware qualification is best-effort"
     else:
         status = "WARN"
-        message = f"{prettyName}; outside the v0.8.0 Linux Mint/Ubuntu support boundary"
+        message = f"{prettyName}; outside the v1.0.0 Linux Mint support boundary"
     return LinuxEnvironmentCheck(status, "Linux distribution", message)
 
 

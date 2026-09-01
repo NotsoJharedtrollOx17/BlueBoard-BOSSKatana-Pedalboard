@@ -164,7 +164,7 @@ class KatanaSessionTests(unittest.TestCase):
         transport = FakeDuplexTransport({CURRENT_SELECTION_ADDRESS: ((CURRENT_SELECTION_ADDRESS, (0, 1)),)})
         report = self.makeProbe(transport, target="current-selection").probe()
         fixture = report.asFixture()
-        self.assertEqual(fixture["projectVersion"], "0.8.0")
+        self.assertEqual(fixture["projectVersion"], "1.0.0")
         self.assertTrue(fixture["traffic"][0]["bytes"].startswith("F0 41"))
         self.assertEqual(fixture["observations"][0]["decoded"], "CH1")
 
