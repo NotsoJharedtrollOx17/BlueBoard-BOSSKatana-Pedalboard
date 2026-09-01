@@ -2,6 +2,7 @@ param(
     [ValidateSet("venv", "global")][string]$Scope = "venv",
     [switch]$User,
     [switch]$Dev,
+    [switch]$Reinstall,
     [string]$PythonExe
 )
 $ErrorActionPreference = "Stop"
@@ -71,8 +72,15 @@ if ($Scope -eq "venv") {
     exit 0
 }
 
-$installArgs = @("-m", "pip", "install", "--upgrade", $packageTarget)
+$installArgs = @("-m", "pip", "install", "--upgrade")
 if ($User) { $installArgs += "--user" }
+if ($Reinstall) {
+    # Dependencies are already resolved by the normal install above. Replacing
+    # only this local package avoids upgrading unrelated packages in a shared
+    # user Python installation.
+    $installArgs += "--force-reinstall", "--no-deps"
+}
+$installArgs += $packageTarget
 & $PythonExe @installArgs
 if ($LASTEXITCODE -ne 0) { throw "Global package installation failed with exit code $LASTEXITCODE." }
 

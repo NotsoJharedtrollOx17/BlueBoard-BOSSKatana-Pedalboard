@@ -102,6 +102,16 @@ class KatanaCliTests(unittest.TestCase):
         self.assertIsNone(report)
         self.assertEqual(FakeTransport.instances, [])
 
+    def testRuntimeAndDoctorUseTheQualifiedPackagedProfileByDefault(self) -> None:
+        parser = buildParser()
+        run = parser.parse_args(["run"])
+        doctor = parser.parse_args(["doctor"])
+        self.assertEqual(run.config, doctor.config)
+        default = json.loads(run.config.read_text(encoding="utf-8"))
+        self.assertEqual(default["katana"]["firmware"], "4.00")
+        self.assertEqual(default["katana"]["inputName"], "KATANA 0")
+        self.assertEqual(default["katana"]["outputName"], "KATANA 1")
+
     def testSysExProbeReadsAllEffectsAndSavesConfirmedFixture(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory) / "capture.json"

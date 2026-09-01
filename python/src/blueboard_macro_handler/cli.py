@@ -222,7 +222,7 @@ def buildParser() -> argparse.ArgumentParser:
 
     doctor = commands.add_parser("doctor", help="check installation and connected-device readiness without sending")
     addLoggingOptions(doctor)
-    doctor.add_argument("--config", type=Path, required=True)
+    doctor.add_argument("--config", type=Path, default=defaultConfigPath())
     doctor.add_argument("--scan-timeout", type=float)
     doctor.add_argument("--state-file", type=Path, default=defaultStatePath())
 

@@ -1,13 +1,22 @@
 {
-  "device": {
-    "name": "BlueBoard",
-    "scanTimeout": 20.0,
-    "pair": false
+  "device": {"name": "BlueBoard", "scanTimeout": 20.0, "pair": false},
+  "katana": {
+    "outputName": "KATANA 1",
+    "inputName": "KATANA 0",
+    "midiChannel": 1,
+    "model": "katana100",
+    "firmware": "4.00",
+    "effectControls": {"booster": 16, "delay": 17, "reverb": 18, "effectLoop": 19},
+    "presetStates": {
+      "4": {"booster": false, "delay": false},
+      "1": {"booster": false, "delay": false}
+    },
+    "stateSync": {"enabled": true, "requestTimeoutMs": 750, "requestRetries": 1}
   },
   "bindings": [
-    {"cc": 20, "channel": 1, "edge": "press", "action": null},
-    {"cc": 21, "channel": 1, "edge": "press", "action": null},
-    {"cc": 22, "channel": 1, "edge": "press", "action": null},
-    {"cc": 23, "channel": 1, "edge": "press", "action": null}
+    {"cc": 20, "channel": 1, "edge": "press", "cooldownMs": 250, "action": {"type": "katana", "command": "selectPreset", "preset": 4}},
+    {"cc": 21, "channel": 1, "edge": "press", "cooldownMs": 250, "action": {"type": "katana", "command": "selectPreset", "preset": 1}},
+    {"cc": 22, "channel": 1, "edge": "press", "cooldownMs": 250, "action": {"type": "katana", "command": "toggleEffect", "effect": "booster"}},
+    {"cc": 23, "channel": 1, "edge": "press", "cooldownMs": 250, "action": {"type": "katana", "command": "toggleEffect", "effect": "delay"}}
   ]
 }

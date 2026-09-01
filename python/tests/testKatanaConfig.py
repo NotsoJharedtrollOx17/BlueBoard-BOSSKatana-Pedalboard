@@ -121,12 +121,18 @@ class KatanaConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "must be unique"):
             loadConfig(self.writeConfig(value))
 
-    def testRepositoryAndPackagedDefaultsStayAlignedAndHarmless(self) -> None:
+    def testRepositoryAndPackagedDefaultsStayAlignedWithQualifiedMkIProfile(self) -> None:
         root = Path(__file__).resolve().parents[2]
         repository = loadConfig(root / "python" / "config" / "blueboard.json")
         packaged = loadConfig(root / "python" / "src" / "blueboard_macro_handler" / "default_config.json")
         self.assertEqual(configAsDict(repository), configAsDict(packaged))
-        self.assertTrue(all(binding.action is None for binding in packaged.bindings))
+        self.assertEqual(packaged.katana.model, "katana100")
+        self.assertEqual(packaged.katana.firmware, "4.00")
+        self.assertEqual(packaged.katana.inputName, "KATANA 0")
+        self.assertEqual(packaged.katana.outputName, "KATANA 1")
+        self.assertEqual([binding.action.command for binding in packaged.bindings], [
+            "selectPreset", "selectPreset", "toggleEffect", "toggleEffect",
+        ])
 
     def testGeneratedPedalboardProfileDefaultsToValidatedOriginalPanelMapping(self) -> None:
         config = katanaPedalboardConfig("KATANA 1")

@@ -169,6 +169,74 @@ If local policy blocks scripts, use a process-scoped bypass:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\onboardPedalboard.ps1
 ```
 
+## Install the CLI for use anywhere
+
+The package installs the `blueboard-katana` command. The repository launchers
+remain convenient because they automatically select the local virtual environment
+and generated profile, but a global installation lets you call the CLI from any
+directory.
+
+### Windows
+
+From PowerShell in this repository, install for the current user without an
+administrator prompt:
+
+```powershell
+.\setupPedalboard.ps1 -Scope global -User
+```
+
+The setup script installs the Katana runtime, locates `blueboard-katana.exe`,
+prints its containing Scripts directory, and verifies `--version`. If a new
+PowerShell window still cannot find the command, add that printed Scripts
+directory to your user `PATH`, then open another terminal.
+
+The installed command defaults to the qualified original KATANA-100 MkI,
+firmware 4.00, Panel-first profile (`KATANA 0` input and `KATANA 1` output).
+For that exact setup, it works without a configuration argument:
+
+```powershell
+$config = "C:\path\to\katana-pedalboard.local.json"
+blueboard-katana --version
+blueboard-katana doctor
+blueboard-katana run --debug
+blueboard-katana run --debug --execute-actions
+```
+
+Use `--config $config` to override those selectors, map, or firmware for any
+other amplifier, MIDI-port naming, or custom layout. Real amplifier actions
+remain opt-in through `--execute-actions`. Rerun the same setup command after
+pulling a newer revision to update the installation. When the package version
+has not changed, add `-Reinstall` to replace only this package's files without
+upgrading its shared Python dependencies.
+
+### Linux
+
+The supplied `setupPedalboard.sh` deliberately creates a repository-local virtual
+environment. To expose the CLI globally for one user, install the project with
+`pipx` after Linux Bluetooth/ALSA prerequisites are available:
+
+```bash
+sudo apt install pipx
+pipx ensurepath
+pipx install --editable '.[katana]'
+```
+
+Open a new terminal after `pipx ensurepath`, then use the same profile-explicit
+commands:
+
+```bash
+config="/absolute/path/to/katana-pedalboard.local.json"
+blueboard-katana --version
+blueboard-katana doctor
+blueboard-katana run --debug
+blueboard-katana run --debug --execute-actions
+```
+
+`pipx` changes only the current user's application environment. `sudo apt install
+pipx` is the explicit system-level prerequisite installation; use your existing
+package-management policy if you do not want that change. The normal Linux
+onboarding/diagnostics prerequisites, including BlueZ and ALSA, still apply.
+
 ## Linux quick start
 
 On Linux Mint 22.2 x86-64:
@@ -254,15 +322,18 @@ If a required read is unavailable, the state is unknown—not off. Preset select
 can remain available, but relative toggles are rejected until state is known. No
 generic SysEx write is exposed.
 
-The committed Panel example has placeholder firmware `unknown`; use onboarding
-to create a machine-specific v4.00 profile before expecting synchronized state.
+The installed default profile is the qualified original-MkI v4.00 Panel-first
+map. Use onboarding to create a machine-specific profile whenever the amplifier,
+firmware, or MIDI selectors differ.
 
 ## Configuration
 
-The safe packaged default at
-[`python/config/blueboard.json`](python/config/blueboard.json) leaves A-D
-unmapped. The examples are starting points; normal use should generate an ignored
-local profile with onboarding.
+The packaged default at
+[`python/config/blueboard.json`](python/config/blueboard.json) is the qualified
+original KATANA-100 MkI firmware-4.00 Panel-first profile. It uses `KATANA 0`
+for input and `KATANA 1` for output. The examples are starting points; generate
+an ignored local profile with onboarding if those facts do not exactly match
+your hardware.
 
 Bindings may contain only a `katana` action, harmless `log`, or `null`. Legacy
 keyboard, UDP, launch, and general macro actions are rejected.
@@ -293,9 +364,117 @@ or ambiguous device.
 | `katana-test` | Send one explicit standard-MIDI PC or CC diagnostic |
 | `probe-effects` | Bounded model-aware standard-MIDI probe after `PROBE` consent |
 | `sysex-probe` | Bounded predefined read-only SysEx probe after `READ` consent |
-| `init-config` | Write an editable harmless default |
+| `init-config` | Write an editable copy of the qualified MkI v4.00 default |
 
 Run `blueboard-katana COMMAND --help` for current options.
+
+## CLI reference
+
+`blueboard-katana` is the standalone applet version of the project: it discovers
+the wireless BlueBoard, decodes its four BLE-MIDI controls, and routes configured
+button presses to a Katana over USB-MIDI. The normal live path is:
+
+```text
+onboard -> doctor -> run --dry-run -> run --execute-actions
+```
+
+Without `--config`, the applet uses the qualified original KATANA-100 MkI
+firmware-4.00 Panel-first profile. Use a generated local profile whenever your
+hardware, MIDI selectors, or layout differs.
+
+### Common options
+
+Most runtime and diagnostic commands accept these options:
+
+| Option | Meaning |
+|---|---|
+| `--config PATH` | Profile to load. Runtime commands otherwise use the packaged qualified MkI v4.00 Panel-first default; onboarding/configuration commands otherwise write `blueboard-katana.json` in the current directory. |
+| `--debug` | Emit detailed human-readable diagnostics. |
+| `--json-logs` | Emit structured JSON log records. |
+| `--log-file PATH` | Write logs to a file as well as the console. |
+| `--name TEXT` | BlueBoard name substring used during discovery. |
+| `--address ADDRESS` | Exact BlueBoard address when more than one matching device is present. |
+| `--scan-timeout SECONDS` | Bound BLE discovery for that invocation. |
+| `--state-file PATH` | Persist/reuse the last successful BlueBoard address where the command supports it. |
+
+### Everyday commands
+
+| Command | Options | What it does |
+|---|---|---|
+| `scan` | `--config`, `--name`, `--scan-timeout`, logging options | Scan for a BlueBoard. No Katana MIDI port is opened. |
+| `onboard` | Common configuration options below plus `--verify-existing` | Recommended first-run workflow: discover, generate/replace a profile after confirmation, or read-only verify an existing one. |
+| `doctor` | `--config PATH`, `--scan-timeout`, `--state-file`, logging options | Read-only installation/device readiness report; without `--config`, checks the packaged qualified MkI default. Exit 0 means ready; exit 2 means an actionable failure. |
+| `run` | `--config`, device-selection options, `--duration-seconds`, mode/LED options, logging options | Connect BlueBoard and route configured bindings. Dry-run is the default. |
+| `validate` | `--config`, logging options | Validate and print the normalized profile without hardware access. |
+| `init-config [PATH] --force` | Optional output path; `--force` replaces an existing file | Write an editable copy of the qualified MkI v4.00 Panel-first profile. |
+| `replay FILE` | `--config`, `--execute-actions`, logging options | Replay recorded BLE-MIDI fixture packets. Keep actions disabled unless deliberately testing dispatch. |
+
+The configuration/orchestration options for `onboard` and `configure` are:
+
+| Option | Meaning |
+|---|---|
+| `--input NAME` / `--output NAME` | Exact or uniquely matching Katana MIDI selectors. They are independent; non-interactive mode never guesses. |
+| `--model katana100|katana100MkII` | Amplifier profile. Use `katana100` for the original MkI. |
+| `--layout panel-first|channels-1-2` | Generated A-D starter map. `panel-first` is the recommended original-MkI layout. |
+| `--midi-channel 1..16` | JSON-facing MIDI channel; the wire channel is zero-based internally. |
+| `--firmware VALUE` | Firmware evidence recorded in the profile; use exact `4.00` for eligible MkI state synchronization. |
+| `--accept-profile-state-defaults` | Explicitly accept generated initial effect-state predictions. |
+| `--non-interactive` | Require every ambiguous decision to be supplied as an option. |
+| `--force` | Replace an existing generated profile after creating a timestamped backup. |
+| `--verify-existing` | `onboard` only: inspect the saved profile again without prompting or writing. |
+
+`configure` generates a profile through its specialist workflow. `onboard` is
+usually preferable because it combines discovery, configuration, and a fresh
+read-only readiness check.
+
+### Running the pedalboard
+
+`run` accepts the following operation-specific options:
+
+| Option | Meaning and side effect |
+|---|---|
+| `--dry-run` | Default. Decode, route, and log A-D events without sending configured Katana actions. |
+| `--execute-actions` | Enable configured Program Change, Control Change, and eligible read-only state synchronization. This can change amplifier state. |
+| `--duration-seconds N` | Stop cleanly after a positive bounded duration; useful for recorded sessions. |
+| `--led-feedback` | Mirror physical A-D press/release on BlueBoard lights. Independent from amplifier actions. |
+| `--reset-leds` | Send one paced A-D-off sequence and disconnect; requires `--led-feedback`. |
+| `--name`, `--address`, `--scan-timeout` | Override BlueBoard discovery for this run. |
+| `--state-file PATH` | Override the saved-address file. |
+
+Examples:
+
+```powershell
+$config = "C:\path\to\katana-pedalboard.local.json"
+blueboard-katana doctor --config $config
+blueboard-katana run --config $config --debug
+blueboard-katana run --config $config --debug --execute-actions --led-feedback
+blueboard-katana run --config $config --debug --duration-seconds 300
+```
+
+### MIDI and protocol diagnostics
+
+These commands are for deliberate troubleshooting and hardware evidence, not
+the normal daily pedalboard path.
+
+| Command | Required/options | Side-effect boundary |
+|---|---|---|
+| `midi-inputs` / `midi-outputs` | Logging options only | List ports without opening them or sending MIDI. |
+| `katana-test` | `--output NAME`; one of `--program N` or `--control N --value N`; optional `--channel 1..16` | Sends exactly one standard-MIDI diagnostic message. Program values are wire values; original-MkI Panel is 4. |
+| `probe-effects` | Exactly one of `--config PATH` or `--output NAME`; `--model` required with raw output; optional `--channel`, `--program`, `--effects` | Requires `PROBE` confirmation, tests only documented model-correct switches, requests physical observation, and attempts switch-off cleanup after interruption. |
+| `sysex-probe` | `--model katana100 --input NAME --output NAME --read TARGET`; optional `--device-id`, `--timeout-ms`, `--retries`, `--editor-settle-ms`, `--save-fixture` | Requires `READ` before opening ports. Sends bounded RQ1 reads only; fixture saving requires a second `SAVE` confirmation. |
+
+`sysex-probe --read` accepts only `current-selection`, `effect-states`, or
+`panel-snapshot`. It does not accept arbitrary addresses and exposes no generic
+SysEx write. `--timeout-ms` defaults to 750, `--retries` defaults to 1, and
+`--editor-settle-ms` defaults to 75 for the predefined current-selection
+handshake.
+
+For example, a bounded original-MkI effect-state read is:
+
+```powershell
+blueboard-katana sysex-probe --model katana100 `
+  --input "KATANA 0" --output "KATANA 1" --read effect-states --debug
+```
 
 ## Read-only SysEx probe
 
