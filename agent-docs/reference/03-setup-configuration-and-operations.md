@@ -41,6 +41,10 @@ complete A-D mapping, and writes the ignored local profile only after
 confirmation. Running it again verifies the saved profile. Use `-Force` only for
 an intentional replacement; the old local file is backed up first.
 
+The wrapper exposes onboarding options as native PowerShell parameters. A first
+non-interactive run must supply each otherwise ambiguous model, layout, port,
+device, and firmware value.
+
 For repeatable original-MkI setup, use the exact names enumerated on that host:
 
 ```powershell

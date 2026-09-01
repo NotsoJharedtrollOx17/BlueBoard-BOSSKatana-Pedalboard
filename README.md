@@ -14,7 +14,7 @@ toggles synchronized with the live temporary patch.
 
 The v1.0.0 package revision includes the full Windows and Linux Mint 22.2 x86-64
 runtime. The implementation was completed across the v0.8.0 development series;
-the remaining acceptance records document device-specific evidence still to be
+the canonical release checklist documents device-specific evidence still to be
 closed before publishing a stable tag.
 
 The project builds on the BLE-MIDI connection, decoding, routing, reconnection,
@@ -545,7 +545,7 @@ tags created from accepted `main` commits.
 Local Windows validation after the documentation/code review:
 
 ```text
-Ran 166 tests in 7.178s
+Ran 167 tests
 OK (skipped=5)
 ```
 
@@ -562,7 +562,9 @@ The five canonical references for future agents are:
 4. [Protocol evidence and hardware validation](agent-docs/reference/04-protocol-evidence-and-hardware-validation.md)
 5. [Release history and v1.0.0 checklist](agent-docs/reference/05-release-history-and-v1.0.0-checklist.md)
 
-Historical plans and acceptance records remain in `agent-docs/` for provenance.
+The five references are the complete maintained documentation set. They retain
+the historical evidence boundary and current release gates without parallel
+milestone plans.
 
 ## v1.0.0 release boundary
 
@@ -578,8 +580,7 @@ tag, the same accepted revision must:
 - close or explicitly approve the remaining physical evidence, rerun validation,
   merge to `main`, then tag that accepted `main` commit.
 
-See the [canonical release checklist](agent-docs/reference/05-release-history-and-v1.0.0-checklist.md)
-and the underlying [Linux hardware acceptance record](agent-docs/v0.8.0-linux-hardware-acceptance.md).
+See the [canonical release checklist](agent-docs/reference/05-release-history-and-v1.0.0-checklist.md).
 
 ## Primary references
 
@@ -591,8 +592,7 @@ and the underlying [Linux hardware acceptance record](agent-docs/v0.8.0-linux-ha
 - [python-rtmidi documentation](https://spotlightkid.github.io/python-rtmidi/)
 
 Community SysEx research is useful but remains provenance-labeled and cannot by
-itself authorize target-hardware production access. Exact source links and the
-full rationale are preserved in the historical v1.0.0 SysEx specification.
+itself authorize target-hardware production access.
 
 ## Third-party notices
 

@@ -2,9 +2,10 @@
 
 ## Purpose of this reference set
 
-This file is the entry point for future maintainers and coding agents. It
-consolidates the project decisions made across the v0.1.0-v0.8.0 plans without
-replacing the dated acceptance records that support them.
+This file is the entry point for future maintainers and coding agents. The five
+files in this directory are the complete maintained documentation set: they
+consolidate the implementation decisions, protocol boundary, operations, and
+dated acceptance status formerly spread across milestone plans and records.
 
 Read the five files in this directory in order:
 
@@ -14,10 +15,9 @@ Read the five files in this directory in order:
 4. `04-protocol-evidence-and-hardware-validation.md`;
 5. `05-release-history-and-v1.0.0-checklist.md`.
 
-The older files in `agent-docs/` remain the historical evidence trail. When a
-summary conflicts with a dated physical record, current code, or a physical
-observation, investigate the conflict instead of silently choosing the more
-convenient claim.
+When a summary conflicts with current code or a new physical observation,
+investigate the conflict and update the applicable reference instead of silently
+choosing the more convenient claim.
 
 ## Product in one paragraph
 
@@ -40,7 +40,6 @@ Use this order when deciding what the project may claim or do:
 3. Current executable source, tests, package metadata, and committed profiles.
 4. Official BOSS/Roland and IK Multimedia documentation for the exact model.
 5. Community protocol research, explicitly labeled with its provenance.
-6. Historical plans and summaries.
 
 Never infer physical support merely because a byte-level unit test passes. Never
 apply a MkII map or application to the original KATANA-100 MkI.
@@ -116,11 +115,10 @@ and Bank B CH1-4 are 5-8.
 | `python/src/blueboard_macro_handler/` | Maintained application source |
 | `python/src/blueboard_macro_handler/katana/` | MIDI protocol, transport, session, registry, and runtime state logic |
 | `python/tests/` | Unit and platform-contract tests |
-| `python/config/` | Harmless default, examples, and ignored generated local profile |
+| `python/config/` | Qualified MkI default, examples, and ignored generated local profile |
 | root `*.ps1` and `*.sh` | Windows and Linux setup, onboarding, diagnostics, run, probe, and recording entry points |
 | `.github/workflows/ci.yml` | Windows/Ubuntu Python and package-smoke definitions |
 | `agent-docs/reference/` | Five canonical maintainer references |
-| other `agent-docs/*.md` | Historical plans, physical records, analyses, and protocol rationale |
 
 ## Change rules
 
@@ -131,7 +129,7 @@ Before changing behavior:
 2. preserve the dry-run and explicit-action boundary;
 3. keep BlueBoard BLE and Katana MIDI lifecycles independently recoverable;
 4. add source tests before broadening a parser, registry, or side-effect path;
-5. update the applicable canonical reference and retain dated acceptance data;
+5. update the applicable canonical reference with dated acceptance data;
 6. use a bounded hardware procedure with backup, safe volume, explicit consent,
    stop conditions, and restoration when physical verification is required.
 
@@ -140,6 +138,5 @@ Before changing behavior:
 The stable target is a Windows and Linux bridge for the original KATANA-100 MkI
 firmware 4.00, with documented PC/CC control and read-only state-aware toggles.
 The source is substantially implemented. Promotion requires the unchecked items
-in `05-release-history-and-v1.0.0-checklist.md` and the underlying dated
-acceptance records; documentation wording, a version bump, or a tag cannot
-substitute for those results.
+in `05-release-history-and-v1.0.0-checklist.md`; documentation wording, a
+version bump, or a tag cannot substitute for those results.

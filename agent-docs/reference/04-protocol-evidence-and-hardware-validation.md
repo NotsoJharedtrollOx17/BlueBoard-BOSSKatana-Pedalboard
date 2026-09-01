@@ -24,6 +24,11 @@ The original-generation BOSS Tone Studio application communicates with it; the
 MkII application displayed `WRONG DEVICE`. This model correction overrides older
 generic or MkII-oriented assumptions.
 
+`WRONG DEVICE` in that situation identifies an editor/model mismatch, not a USB
+cable, driver, or chosen-port failure. Treat the MIDI settings displayed by the
+matching original-generation Tone Studio application as the model-specific
+standard-MIDI source of truth.
+
 Observed Windows USB-MIDI names were:
 
 - input from amplifier: `KATANA 0`;
@@ -51,6 +56,11 @@ The original MkI grouped map captured from the matching Tone Studio settings is:
 | Delay/FX switch | 17 | Shared group |
 | Reverb switch | 18 | Reverb |
 | Send/Return switch | 19 | Effects loop; may be inaudible when inactive |
+
+Tone Studio labels its Program Change values one-based; the bridge uses the
+zero-based wire values shown above. Historical observations of expression values
+CC80, CC81, and CC82 are not a supported bridge feature and must not be exposed
+without a separate model-specific evidence and safety review.
 
 The official MkII map represented in source is independent:
 
@@ -126,14 +136,14 @@ recorded baseline and restoration snapshots matched: Boost on; Mod and FX off;
 Delay, Reverb, and Effect Loop on.
 
 This supports the bounded read path and the exact v4.00 registry promotion. The
-older v0.7.0 acceptance record still requires controlled per-effect fixture sets
-and the full live runtime matrix. A standalone `sysex-probe` does not synchronize
-another running process; only the integrated `KatanaRuntime` path owns live state.
+Windows runtime gate still requires controlled per-effect fixture sets and the
+full live runtime matrix. A standalone `sysex-probe` does not synchronize another
+running process; only the integrated `KatanaRuntime` path owns live state.
 
 The preliminary Linux active startup opened ALSA input before output, received
 six valid replies in roughly 113 ms, and reported six requests/replies with zero
 retries, timeouts, or checksum failures. A human comparison against the physical
-amplifier remains unchecked in the Linux acceptance record.
+amplifier remains unchecked in the Linux release gate.
 
 ## Bounded probe behavior
 

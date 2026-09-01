@@ -8,8 +8,9 @@ port and read-only MkI state-aware runtime are implemented, but the checked-in
 acceptance records do not yet authorize a stable v1.0.0 claim or tag. This file
 defines what remains between the promoted package revision and publication.
 
-Do not bump metadata, change the development classifier, merge `dev` to `main`,
-or create `v1.0.0` merely because the README and canonical references are ready.
+Do not merge `dev` to `main` or create `v1.0.0` merely because the README and
+canonical references are ready. The metadata is already promoted; publication
+still depends on the gates below.
 
 ## Consolidated release history
 
@@ -100,6 +101,15 @@ or create `v1.0.0` merely because the README and canonical references are ready.
 | Deep SysEx parameter editing/writes | Not implemented | Out of scope |
 | Persistent amplifier-state LEDs | Not implemented | Future work |
 
+## Consolidated dated evidence register
+
+| Date / milestone | Observed or verified result | What remains open |
+|---|---|---|
+| 2026-08-23/24 model correction | Original KATANA-100 MkI identified; original Tone Studio selected; Windows `KATANA 1`, PC0, CC16, CC17, and BlueBoard A/C/D routing observed | Exact firmware was not captured in this initial record; B/PC1 and broader controls were not yet separately observed |
+| 2026-08-29 v0.4 Windows smoke | Dry-run and active A-D routing, momentary LEDs, independent BlueBoard/Katana reconnect recovery, and Ctrl+C metrics observed | This is not the 60-minute v1 rehearsal and does not establish the root cause of a recovered WinMM send failure |
+| 2026-08-30 v0.7 Windows SysEx | Firmware 4.00 evidence, independent `KATANA 0`/`KATANA 1` selectors, current-selection responses, and six checksum-valid effect-state replies observed; read-only definitions approved | Controlled per-effect changed/restored fixtures and the full runtime matrix remain required |
+| v0.8 Linux preliminary | Mint 22.2 x86-64 setup, ALSA selector derivation, doctor, BLE compatibility discovery, and a bounded six-read startup completed; input opened before output and no action was sent | Human amplifier comparison, A-D actions, LEDs, reconnects, failed-read behavior, cleanup, endurance, reboot persistence, and Windows regression remain release gates |
+
 ## Fresh automated review, 2026-08-31
 
 The documentation review found a Windows portability defect in
@@ -111,7 +121,7 @@ After that correction, the CI-style Windows command completed:
 
 ```text
 python -m unittest discover -s python/tests -p "test*.py"
-Ran 166 tests in 7.178s
+Ran 167 tests
 OK (skipped=5)
 ```
 
@@ -123,7 +133,7 @@ the presence of expected simulated error logs.
 
 ### Source and packaging
 
-- [x] Current Windows unit suite passes: 166 tests, 5 expected skips.
+- [x] Current Windows unit suite passes: 167 tests, 5 expected skips.
 - [ ] Ruff passes on the final candidate.
 - [ ] PowerShell and Bash syntax checks pass on the final candidate.
 - [ ] Markdown links/fences and `git diff --check` pass.
@@ -135,7 +145,7 @@ the presence of expected simulated error logs.
 
 ### Windows original-KATANA-100 MkI firmware 4.00
 
-- [ ] Reconcile the v0.7.0 runtime acceptance record with sanitized live results.
+- [ ] Reconcile the Windows runtime gate with sanitized live results.
 - [ ] Attach controlled six-effect changed/restored fixture sets or record an
   explicit reviewed decision narrowing that legacy gate.
 - [ ] Confirm exact input/output, startup six-state match, post-PC refresh, C/D
@@ -146,8 +156,8 @@ the presence of expected simulated error logs.
 
 ### Linux Mint 22.2 x86-64 original MkI firmware 4.00
 
-- [ ] Complete every preparation and live item in
-  `../v0.8.0-linux-hardware-acceptance.md` with sanitized evidence.
+- [ ] Complete the Linux preparation and live evidence captured in the
+  consolidated dated-evidence register above.
 - [ ] Confirm A-D routing, momentary LEDs, startup values against the amp,
   post-PC refresh, and pre/post-toggle verification.
 - [ ] Confirm independent BlueBoard/Katana reconnect, unknown after failed read,
@@ -158,8 +168,8 @@ the presence of expected simulated error logs.
 
 ### Documentation and release mechanics
 
-- [x] Five canonical agent references summarize the historical plans and current
-  architecture/evidence boundary.
+- [x] Five canonical agent references consolidate the project history, current
+  architecture, evidence boundary, and release gates.
 - [x] README is organized as a v1.0.0 release guide with accurate
   quick starts, model distinctions, safety boundary, and acceptance status.
 - [x] README status identifies the v1.0.0 package while keeping physical evidence
@@ -212,15 +222,10 @@ repeat affected gates. Do not move a tag to hide a changed release commit.
 6. A future C++ port only after Python fixtures and lifecycle behavior form a
    stable executable specification.
 
-## Historical document index
+## Documentation consolidation boundary
 
-The five canonical references summarize these retained evidence records:
-
-- `2026-08-23-original-katana100-breakthroughs.md`: physical model correction.
-- `v0.2.0-*` through `v0.8.0-*` acceptance records: dated configuration and
-  physical-validation evidence.
-- `v1.0.0-mki-sysex-state-awareness-spec.md`: full protocol/state rationale.
-
-Use the historical files when exact wording, dates, commands, or unchecked
-evidence are required. Update dated acceptance records rather than overwriting
-their history with a retrospective claim.
+The five references are intentionally self-contained. They preserve the dated
+acceptance status, protocol constraints, known facts, and open gates formerly
+recorded in milestone plans, hardware worksheets, and the SysEx design
+specification. Do not recreate parallel plans: add new evidence, decisions, or
+release results to the relevant reference with its date and candidate revision.
