@@ -49,6 +49,16 @@ Not included: keyboard macros, UDP/process launch, persistent amp-state LEDs,
 expression control, arbitrary SysEx addresses, deep parameter editing, patch
 storage, or general SysEx writes.
 
+## Windows 10 demonstration with Live Guitar setup
+
+The [v1.0.0 Windows 10 demonstration](https://youtu.be/k5A9qR18H3k) is 4:05
+minutes long. It shows the BlueBoard-to-KATANA bridge operating while the
+author plays electric guitar and controls the amplifier from the iRig BlueBoard.
+The recording demonstrates practical preset/effect response, with no noticeable
+delay between button presses and the resulting channel or effect changes. This
+is a user-facing Windows demonstration, not a replacement for the bounded
+release acceptance gates below.
+
 ## Support status
 
 | Target | Source status | Physical qualification |

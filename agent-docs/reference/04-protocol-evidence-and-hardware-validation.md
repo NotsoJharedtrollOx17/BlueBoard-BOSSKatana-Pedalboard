@@ -199,7 +199,7 @@ No SysEx write is required for the v1.0.0 state-awareness scope.
 
 ## Windows acceptance still relevant to v1.0.0
 
-- Re-run the 166-test/Ruff/package/script gates from the candidate revision.
+- Re-run the 167-test/Ruff/package/script gates from the candidate revision.
 - Confirm generated exact-firmware profile and read-only doctor.
 - Confirm six queried startup values against the amplifier.
 - Confirm A/B post-PC snapshots and first-press C/D pre-read/verification.
