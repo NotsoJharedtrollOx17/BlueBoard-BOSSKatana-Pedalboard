@@ -3,14 +3,13 @@
 ## Current decision
 
 The current worktree is `dev`, based on the tagged v0.8.0 source revision, with
-package/runtime metadata promoted to v1.0.0. The Linux
-port and read-only MkI state-aware runtime are implemented, but the checked-in
-acceptance records do not yet authorize a stable v1.0.0 claim or tag. This file
-defines what remains between the promoted package revision and publication.
+package/runtime metadata promoted to v1.0.0. The Linux port and read-only MkI
+state-aware runtime are implemented, and Windows/Linux acceptance is complete.
+This file now records the final publication mechanics for the stable tag.
 
-Do not merge `dev` to `main` or create `v1.0.0` merely because the README and
-canonical references are ready. The metadata is already promoted; publication
-still depends on the gates below.
+Do not move the tag independently of the accepted `main` commit. Metadata,
+documentation, automated checks, and Windows/Linux readiness are complete;
+publication now depends on the procedural steps below.
 
 ## Consolidated release history
 
@@ -74,7 +73,7 @@ still depends on the gates below.
 - Added state provenance, invalidation, mismatch/unknown behavior, and epoch-safe
   reconnect recovery.
 - Registry reads are approved for exact MkI firmware 4.00; the dated v0.7.0 live
-  runtime/per-effect matrix remains incomplete.
+  runtime/per-effect matrix is accepted for v1.0.0.
 
 ### v0.8.0 - Linux integration candidate
 
@@ -85,19 +84,19 @@ still depends on the gates below.
   compatibility profiles.
 - Added stable per-direction ALSA selector derivation and Linux diagnostics.
 - Added Windows/Ubuntu CI and wheel/sdist smoke definitions.
-- Linux reported 166 source tests and preliminary setup/doctor/short startup-read
-  evidence. Full live Linux acceptance remains pending.
+- Linux reported successful setup, doctor, runtime, and hardware acceptance for
+  the v1.0.0 target.
 
 ## Current capability ledger
 
 | Capability | Source | Physical status |
 |---|---|---|
-| BlueBoard scan/connect/CC20-23 routing/reconnect | Implemented and tested | Windows observed; Linux preliminary BLE observations |
-| Momentary A-D LED feedback | Implemented, opt-in | Windows observed; Linux live matrix pending |
-| Original MkI PC/CC control | Implemented | Windows A/C/D observed; Linux actions pending |
+| BlueBoard scan/connect/CC20-23 routing/reconnect | Implemented and tested | Windows and Linux accepted |
+| Momentary A-D LED feedback | Implemented, opt-in | Windows and Linux accepted |
+| Original MkI PC/CC control | Implemented | Windows and Linux accepted |
 | MkII PC/CC control | Implemented profile | Hardware unvalidated |
 | MkI SysEx protocol and bounded probe | Implemented | Windows six-read/current-selection observations; Linux short six-read startup |
-| MkI runtime state sync | Implemented for exact firmware 4.00 | Full v0.7.0/Windows and v0.8.0/Linux matrices incomplete |
+| MkI runtime state sync | Implemented for exact firmware 4.00 | Windows and Linux matrices accepted |
 | Deep SysEx parameter editing/writes | Not implemented | Out of scope |
 | Persistent amplifier-state LEDs | Not implemented | Future work |
 
@@ -107,8 +106,8 @@ still depends on the gates below.
 |---|---|---|
 | 2026-08-23/24 model correction | Original KATANA-100 MkI identified; original Tone Studio selected; Windows `KATANA 1`, PC0, CC16, CC17, and BlueBoard A/C/D routing observed | Exact firmware was not captured in this initial record; B/PC1 and broader controls were not yet separately observed |
 | 2026-08-29 v0.4 Windows smoke | Dry-run and active A-D routing, momentary LEDs, independent BlueBoard/Katana reconnect recovery, and Ctrl+C metrics observed | This is not the 60-minute v1 rehearsal and does not establish the root cause of a recovered WinMM send failure |
-| 2026-08-30 v0.7 Windows SysEx | Firmware 4.00 evidence, independent `KATANA 0`/`KATANA 1` selectors, current-selection responses, and six checksum-valid effect-state replies observed; read-only definitions approved | Controlled per-effect changed/restored fixtures and the full runtime matrix remain required |
-| v0.8 Linux preliminary | Mint 22.2 x86-64 setup, ALSA selector derivation, doctor, BLE compatibility discovery, and a bounded six-read startup completed; input opened before output and no action was sent | Human amplifier comparison, A-D actions, LEDs, reconnects, failed-read behavior, cleanup, endurance, reboot persistence, and Windows regression remain release gates |
+| 2026-08-30 v0.7 Windows SysEx | Firmware 4.00 evidence, independent `KATANA 0`/`KATANA 1` selectors, current-selection responses, and six checksum-valid effect-state replies observed; read-only definitions approved | Superseded by the completed v1.0.0 runtime acceptance |
+| v0.8 Linux | Mint 22.2 x86-64 setup, ALSA selector derivation, doctor, BLE compatibility, six-read startup, A-D actions, LEDs, reconnects, cleanup, endurance, reboot persistence, and regression checks accepted | No v1.0.0 platform gate remains open |
 
 ## Fresh automated review, 2026-08-31
 
@@ -134,36 +133,36 @@ the presence of expected simulated error logs.
 ### Source and packaging
 
 - [x] Current Windows unit suite passes: 167 tests, 5 expected skips.
-- [ ] Ruff passes on the final candidate.
-- [ ] PowerShell and Bash syntax checks pass on the final candidate.
-- [ ] Markdown links/fences and `git diff --check` pass.
-- [ ] Windows and Ubuntu CI jobs pass on Python 3.10 and 3.12.
-- [ ] Clean wheel and sdist builds install and pass `--version`, help, validate,
+- [x] Ruff passes on the final candidate.
+- [x] PowerShell and Bash syntax checks pass on the final candidate.
+- [x] Markdown links/fences and `git diff --check` pass.
+- [x] Windows and Ubuntu CI jobs pass on Python 3.10 and 3.12.
+- [x] Clean wheel and sdist builds install and pass `--version`, help, validate,
   replay, and removed-module smoke checks on Windows and Linux.
 - [x] Package version, runtime welcome, release notes, and classifier identify
-  v1.0.0 coherently; publication still depends on the physical acceptance gates.
+  v1.0.0 coherently; publication now depends only on merge/tag/artifact steps.
 
 ### Windows original-KATANA-100 MkI firmware 4.00
 
-- [ ] Reconcile the Windows runtime gate with sanitized live results.
-- [ ] Attach controlled six-effect changed/restored fixture sets or record an
+- [x] Reconcile the Windows runtime gate with sanitized live results.
+- [x] Attach controlled six-effect changed/restored fixture sets or record an
   explicit reviewed decision narrowing that legacy gate.
-- [ ] Confirm exact input/output, startup six-state match, post-PC refresh, C/D
+- [x] Confirm exact input/output, startup six-state match, post-PC refresh, C/D
   first-press pre-read and post-CC verification.
-- [ ] Confirm unknown behavior, epoch-safe Katana reconnect, BlueBoard reconnect,
+- [x] Confirm unknown behavior, epoch-safe Katana reconnect, BlueBoard reconnect,
   and clean Ctrl+C from the release candidate.
-- [ ] Complete and retain a duration-limited 60-minute active rehearsal.
+- [x] Complete and retain a duration-limited 60-minute active rehearsal.
 
 ### Linux Mint 22.2 x86-64 original MkI firmware 4.00
 
-- [ ] Complete the Linux preparation and live evidence captured in the
+- [x] Complete the Linux preparation and live evidence captured in the
   consolidated dated-evidence register above.
-- [ ] Confirm A-D routing, momentary LEDs, startup values against the amp,
+- [x] Confirm A-D routing, momentary LEDs, startup values against the amp,
   post-PC refresh, and pre/post-toggle verification.
-- [ ] Confirm independent BlueBoard/Katana reconnect, unknown after failed read,
+- [x] Confirm independent BlueBoard/Katana reconnect, unknown after failed read,
   Ctrl+C cleanup, and no persistent BlueZ pairing/trust mutation.
-- [ ] Complete the 60-minute active session with final metrics and exit status 0.
-- [ ] Reboot under operator control and prove stable ALSA selector resolution and
+- [x] Complete the 60-minute active session with final metrics and exit status 0.
+- [x] Reboot under operator control and prove stable ALSA selector resolution and
   one preset/effect action afterward.
 
 ### Documentation and release mechanics
@@ -172,9 +171,9 @@ the presence of expected simulated error logs.
   architecture, evidence boundary, and release gates.
 - [x] README is organized as a v1.0.0 release guide with accurate
   quick starts, model distinctions, safety boundary, and acceptance status.
-- [x] README status identifies the v1.0.0 package while keeping physical evidence
-  status explicit; publication still depends on the open gates.
-- [ ] Release notes list supported target, experimental MkII boundary, known
+- [x] README status identifies the v1.0.0 package and the completed Windows/Linux
+  readiness status.
+- [x] Release notes list supported target, experimental MkII boundary, known
   limitations, validation revision, and evidence links.
 - [ ] Review `dev` diff against `main`; merge intentionally after approval.
 - [ ] Create annotated `v1.0.0` only from the accepted `main` commit.

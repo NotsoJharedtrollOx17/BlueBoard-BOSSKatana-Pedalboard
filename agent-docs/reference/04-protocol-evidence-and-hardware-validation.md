@@ -34,7 +34,7 @@ Observed Windows USB-MIDI names were:
 - input from amplifier: `KATANA 0`;
 - output to amplifier: `KATANA 1`.
 
-Names may differ on another host. Linux preliminary enumeration selected the main
+Names may differ on another host. Initial Linux enumeration selected the main
 ALSA `KATANA MIDI 1` port independently in both directions with a coordinate-free
 unique selector.
 
@@ -136,14 +136,15 @@ recorded baseline and restoration snapshots matched: Boost on; Mod and FX off;
 Delay, Reverb, and Effect Loop on.
 
 This supports the bounded read path and the exact v4.00 registry promotion. The
-Windows runtime gate still requires controlled per-effect fixture sets and the
-full live runtime matrix. A standalone `sysex-probe` does not synchronize another
-running process; only the integrated `KatanaRuntime` path owns live state.
+completed Windows runtime acceptance included controlled per-effect fixtures and
+the full live runtime matrix. A standalone `sysex-probe` does not synchronize
+another running process; only the integrated `KatanaRuntime` path owns live state.
 
-The preliminary Linux active startup opened ALSA input before output, received
-six valid replies in roughly 113 ms, and reported six requests/replies with zero
-retries, timeouts, or checksum failures. A human comparison against the physical
-amplifier remains unchecked in the Linux release gate.
+The Linux active startup opened ALSA input before output, received six valid
+replies in roughly 113 ms, and reported six requests/replies with zero retries,
+timeouts, or checksum failures. Completed Linux acceptance confirmed these
+values against the physical amplifier and extended the check through live A-D
+actions, reconnects, cleanup, endurance, and reboot persistence.
 
 ## Bounded probe behavior
 
@@ -197,34 +198,23 @@ For each candidate read:
 
 No SysEx write is required for the v1.0.0 state-awareness scope.
 
-## Windows acceptance still relevant to v1.0.0
+## Windows acceptance completed for v1.0.0
 
-- Re-run the 167-test/Ruff/package/script gates from the candidate revision.
-- Confirm generated exact-firmware profile and read-only doctor.
-- Confirm six queried startup values against the amplifier.
-- Confirm A/B post-PC snapshots and first-press C/D pre-read/verification.
-- Confirm failed reads produce unknown state and reject relative toggles.
-- Confirm Katana and BlueBoard reconnect independently and Ctrl+C closes cleanly.
-- Retain a duration-limited 60-minute active rehearsal with final metrics.
+- The 167-test/Ruff/package/script gates passed on the accepted revision.
+- The generated exact-firmware profile and read-only doctor were confirmed.
+- Six queried startup values, A/B post-PC snapshots, and first-press C/D
+  pre-read/verification were confirmed against the amplifier.
+- Failed reads produce unknown state and reject relative toggles.
+- Katana and BlueBoard reconnect independently and Ctrl+C closes cleanly.
+- A duration-limited 60-minute active rehearsal was completed with final metrics.
 
-## Linux acceptance still relevant to v1.0.0
+## Linux acceptance completed for v1.0.0
 
-The checked-in Linux record currently has preliminary setup, ALSA, doctor, BLE
-profile, short dry-run, and short startup-read passes. It still requires sanitized
-evidence for:
-
-- physical mode/firmware confirmation and backup preparation;
-- A-D decoding/actions and amplifier-matched six-state startup;
-- post-PC and pre/post-toggle synchronization;
-- momentary LEDs in dry and active modes;
-- BlueBoard and Katana reconnect;
-- failed-read unknown behavior;
-- Ctrl+C cleanup;
-- 60-minute active endurance; and
-- selector survival across an operator-authorized reboot.
-
-The same candidate must preserve Windows behavior. Automated Linux tests do not
-stand in for these human observations.
+Linux Mint 22.2 x86-64 setup, ALSA selectors, doctor, BLE compatibility, live
+A-D routing, six-state synchronization, LEDs, independent reconnects, failed-read
+handling, Ctrl+C cleanup, 60-minute endurance, reboot selector persistence, and
+Windows-regression checks were completed on the accepted revision. The same
+candidate is therefore ready for v1.0.0 publication on both supported platforms.
 
 ## Evidence handling rules
 

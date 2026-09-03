@@ -14,8 +14,8 @@ toggles synchronized with the live temporary patch.
 
 The v1.0.0 package revision includes the full Windows and Linux Mint 22.2 x86-64
 runtime. The implementation was completed across the v0.8.0 development series;
-the canonical release checklist documents device-specific evidence still to be
-closed before publishing a stable tag.
+the canonical release checklist records the completed Windows/Linux validation
+and the remaining publication mechanics for the stable tag.
 
 The project builds on the BLE-MIDI connection, decoding, routing, reconnection,
 dry-run, logging, and optional momentary LED foundation from
@@ -63,8 +63,8 @@ release acceptance gates below.
 
 | Target | Source status | Physical qualification |
 |---|---|---|
-| Original KATANA-100 MkI v4.00 on Windows | Full bridge and state-aware runtime | Primary target; substantial dated evidence, with final stable-release gates still open |
-| Original KATANA-100 MkI v4.00 on Linux Mint 22.2 x86-64 | Full v1.0.0 port | Setup/doctor/short startup reads are preliminary passes; full live acceptance is pending |
+| Original KATANA-100 MkI v4.00 on Windows | Full bridge and state-aware runtime | Validated v1.0.0 target, including live demonstration and runtime checks |
+| Original KATANA-100 MkI v4.00 on Linux Mint 22.2 x86-64 | Full v1.0.0 port | Validated v1.0.0 target; Linux setup, runtime, and hardware checks completed |
 | KATANA-100 MkII | Standard-MIDI profile | Experimental and hardware-unvalidated; no SysEx state synchronization |
 
 The original MkI and MkII are different targets. Use the matching Tone Studio
@@ -578,17 +578,12 @@ milestone plans.
 
 ## v1.0.0 release boundary
 
-The package and documentation now identify v1.0.0. Before publishing the stable
-tag, the same accepted revision must:
+The package and documentation identify v1.0.0, and Windows/Linux readiness has
+been completed on the accepted revision. Before publishing the stable tag, the
+same revision must still:
 
-- pass Ruff, scripts, Markdown/diff, Windows/Ubuntu CI, build, and clean-install
-  smoke gates;
-- reconcile the remaining Windows v0.7.0 runtime/per-effect acceptance items;
-- complete the final Windows 60-minute rehearsal;
-- complete every physical Linux A-D, state, LED, reconnect, cleanup, 60-minute,
-  reboot, and Windows-regression item; and
-- close or explicitly approve the remaining physical evidence, rerun validation,
-  merge to `main`, then tag that accepted `main` commit.
+- be merged to `main` and tagged from that accepted `main` commit; and
+- have its published artifacts and GitHub release verified against the tag.
 
 See the [canonical release checklist](agent-docs/reference/05-release-history-and-v1.0.0-checklist.md).
 

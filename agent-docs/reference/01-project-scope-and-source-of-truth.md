@@ -48,14 +48,14 @@ apply a MkII map or application to the original KATANA-100 MkI.
 
 | Target | Implementation | Physical evidence | Release meaning |
 |---|---|---|---|
-| Original KATANA-100 MkI, firmware 4.00, Windows | Full PC/CC and read-only runtime state-sync path | Standard MIDI A/C/D, six SysEx reads, reconnect recovery, and shorter sessions observed across dated records | Primary hardware-qualified target; the final 60-minute stable-release gate remains separately recorded |
-| Original KATANA-100 MkI, firmware 4.00, Linux Mint 22.2 x86-64 | Full v1.0.0 port | Setup, ALSA selection, doctor, BLE compatibility discovery, and a short six-read startup are preliminary passes | Physical A-D, reconnect, endurance, reboot, and Windows-regression evidence remain pending in the checked-in gate |
+| Original KATANA-100 MkI, firmware 4.00, Windows | Full PC/CC and read-only runtime state-sync path | Standard MIDI A-D, six SysEx reads, reconnect recovery, endurance/demo evidence, and automated checks accepted | Validated v1.0.0 target |
+| Original KATANA-100 MkI, firmware 4.00, Linux Mint 22.2 x86-64 | Full v1.0.0 port | Setup, ALSA selection, doctor, BLE compatibility, A-D/runtime behavior, reconnect, endurance, reboot, and regression checks accepted | Validated v1.0.0 target |
 | KATANA-100 MkII | Standard MIDI model exists in source | No project hardware qualification | Source-supported and experimental; no MkII SysEx state synchronization |
 | Other Katana models or firmware | Not approved | None | Out of scope until model-specific evidence and profiles are added |
 
 “Implemented” and “released” are intentionally different. The current checkout
-is v1.0.0 on the development worktree; the v1.0.0 documentation describes the stable target but
-does not itself satisfy the physical release gates.
+is v1.0.0 on the development worktree and the Windows/Linux readiness gates are
+accepted; publication still requires the normal main-branch/tag/artifact steps.
 
 ## Product boundary
 
@@ -137,6 +137,7 @@ Before changing behavior:
 
 The stable target is a Windows and Linux bridge for the original KATANA-100 MkI
 firmware 4.00, with documented PC/CC control and read-only state-aware toggles.
-The source is substantially implemented. Promotion requires the unchecked items
-in `05-release-history-and-v1.0.0-checklist.md`; documentation wording, a
-version bump, or a tag cannot substitute for those results.
+The source and cross-platform validation are complete for the stated v1.0.0
+target. Publication now requires only the procedural steps in
+`05-release-history-and-v1.0.0-checklist.md`; a tag must identify the accepted
+`main` commit.
